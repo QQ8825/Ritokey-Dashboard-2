@@ -567,7 +567,7 @@ footer{
     </div>
     <div class="header-right">
       <button id="btn-refresh" onclick="loadData(true)">⟳ Làm mới</button>
-      <div class="badge badge-green">📦 <span id="h-orders">—</span> đơn</div>
+      <div class="badge badge-green">📦 <span id="h-orders">—</span> <span id="h-unit">đơn</span></div>
       <div class="badge badge-blue"><span id="h-rev">—</span></div>
     </div>
   </header>
@@ -646,23 +646,19 @@ footer{
           </div>
         </div>
       </div>
-      <!-- BU -->
-      <div class="filter-group">
+      <!-- BU (ẩn với sheet không có cột BU) -->
+      <div class="filter-group" id="fg-bu">
         <div class="filter-label">Business Unit</div>
         <div class="tags" id="f-bus"></div>
       </div>
-      <!-- Status -->
+      <!-- Trạng thái / Nhóm số lượng -->
       <div class="filter-group">
-        <div class="filter-label">Trạng thái</div>
-        <div class="tags" id="f-status">
-          <span class="tag active-blue" data-v="all"    onclick="setStatus(this)">Tất cả</span>
-          <span class="tag"             data-v="Done"   onclick="setStatus(this)">Done</span>
-          <span class="tag"             data-v="Cancel" onclick="setStatus(this)">Cancel</span>
-        </div>
+        <div class="filter-label" id="lbl-status">Trạng thái</div>
+        <div class="tags" id="f-status"></div>
       </div>
-      <!-- SKU -->
+      <!-- SKU / Sản phẩm -->
       <div class="filter-group">
-        <div class="filter-label">SKU</div>
+        <div class="filter-label" id="lbl-item">SKU</div>
         <div class="sku-wrap">
           <button id="sku-btn" onclick="toggleSKUPanel()">
             ⬡ <span id="sku-count-label">—</span> <span id="sku-arrow">▾</span>
@@ -682,25 +678,25 @@ footer{
     <div class="grid-4" style="margin-bottom:16px">
       <div class="kpi k-green">
         <div class="kpi-glow"></div>
-        <div class="kpi-label">Tổng đơn hàng</div>
+        <div class="kpi-label" id="kpi-orders-label">Tổng đơn hàng</div>
         <div class="kpi-val" id="kpi-orders">—</div>
-        <div class="kpi-sub">đơn được cấp</div>
+        <div class="kpi-sub" id="kpi-orders-sub">đơn được cấp</div>
       </div>
       <div class="kpi k-blue">
         <div class="kpi-glow"></div>
-        <div class="kpi-label">Tổng giá vốn</div>
+        <div class="kpi-label" id="kpi-rev-label">Tổng giá vốn</div>
         <div class="kpi-val" id="kpi-rev">—</div>
         <div class="kpi-sub" id="kpi-rev-full">—</div>
       </div>
       <div class="kpi k-yellow">
         <div class="kpi-glow"></div>
-        <div class="kpi-label">Trung bình / đơn</div>
+        <div class="kpi-label" id="kpi-avg-label">Trung bình / đơn</div>
         <div class="kpi-val" id="kpi-avg">—</div>
         <div class="kpi-sub" id="kpi-avg-full">—</div>
       </div>
       <div class="kpi k-red">
         <div class="kpi-glow"></div>
-        <div class="kpi-label">Tỷ lệ Cancel</div>
+        <div class="kpi-label" id="kpi-cancel-label">Tỷ lệ Cancel</div>
         <div class="kpi-val" id="kpi-cancel">—</div>
         <div class="kpi-sub" id="kpi-cancel-sub">—</div>
       </div>
@@ -710,8 +706,8 @@ footer{
     <div class="card" style="margin-bottom:14px">
       <div class="sec-title">
         <span class="sec-dot" style="background:var(--green)"></span>
-        Giá Vốn & Số Đơn Theo Ngày
-        <span class="sec-right">Cột = Giá vốn · Đường = Số đơn</span>
+        <span id="sec-combo">Giá Vốn &amp; Số Đơn Theo Ngày</span>
+        <span class="sec-right" id="sec-combo-hint">Cột = Giá vốn · Đường = Số đơn</span>
       </div>
       <div class="chart-wrap"><canvas id="chart-combo"></canvas></div>
     </div>
@@ -720,13 +716,8 @@ footer{
     <div class="card" style="margin-bottom:14px">
       <div class="sec-title" style="flex-wrap:wrap;gap:8px">
         <span class="sec-dot" style="background:var(--red)"></span>
-        Trạng Thái Đơn Hàng Theo Tuần
-        <div class="tags" style="margin-left:auto" id="f-week-status">
-          <span class="tag active-blue" data-v="all"    onclick="setWeekStatus(this)">Tất cả</span>
-          <span class="tag"             data-v="Done"   onclick="setWeekStatus(this)">Done</span>
-          <span class="tag"             data-v="Cancel" onclick="setWeekStatus(this)">Cancel</span>
-          <span class="tag"             data-v="Other"  onclick="setWeekStatus(this)">Khác</span>
-        </div>
+        <span id="sec-week">Trạng Thái Đơn Hàng Theo Tuần</span>
+        <div class="tags" style="margin-left:auto" id="f-week-status"></div>
       </div>
       <div class="chart-wrap"><canvas id="chart-weekly"></canvas></div>
     </div>
@@ -737,7 +728,7 @@ footer{
       <div class="card">
         <div class="sec-title">
           <span class="sec-dot" style="background:var(--blue)"></span>
-          Top SKU theo Giá Vốn
+          <span id="sec-item">Top SKU theo Giá Vốn</span>
         </div>
         <div id="sku-bars"></div>
       </div>
@@ -746,13 +737,13 @@ footer{
       <div class="card">
         <div class="sec-title">
           <span class="sec-dot" style="background:var(--purple)"></span>
-          Theo BU & Trạng thái
+          <span id="sec-bu">Theo BU &amp; Trạng thái</span>
         </div>
         <div style="display:flex;justify-content:space-between;padding:0 10px;margin-bottom:8px">
-          <span style="font-size:9px;color:var(--muted2);font-weight:700;text-transform:uppercase;letter-spacing:.6px">BU</span>
+          <span id="th-bu" style="font-size:9px;color:var(--muted2);font-weight:700;text-transform:uppercase;letter-spacing:.6px">BU</span>
           <div style="display:flex;gap:20px">
-            <span style="font-size:9px;color:var(--green);font-weight:700;text-transform:uppercase;letter-spacing:.6px">Giá vốn</span>
-            <span style="font-size:9px;color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.6px">Đơn</span>
+            <span id="th-amount" style="font-size:9px;color:var(--green);font-weight:700;text-transform:uppercase;letter-spacing:.6px">Giá vốn</span>
+            <span id="th-count" style="font-size:9px;color:var(--blue);font-weight:700;text-transform:uppercase;letter-spacing:.6px">Đơn</span>
           </div>
         </div>
         <div id="bu-rows"></div>
@@ -782,23 +773,162 @@ const SOURCES = [
     nav:   'Ritokey · HQS10000',      // tên hiện ở menu bên trái
     title: 'RITOKEY · HQS10000',      // tiêu đề trên đầu trang
     sub:   'Sổ cấp hàng',
+    schema:'ritokey',                 // cách đọc sheet — xem SCHEMAS bên dưới
     url:   'https://docs.google.com/spreadsheets/d/1ri89f9lm0z43dQHTNMLxs2OSubGtfMeZ-zIREnXRC50/edit#gid=2137132884',
   },
   {
     id:    's2',
     nav:   'Doanh thu HQC300',
     title: 'DOANH THU HQC300',
-    sub:   'Doanh thu',
-    url:   '',                        // ◀── DÁN LINK SHEET MỚI VÀO ĐÂY
+    sub:   'Doanh thu · USD',
+    schema:'revenue',
+    url:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vRmS_1fIY0T41-7w2Jl59I1Luenz88YBfPHu2wYoAO_pz6zZ-je9iCuLJE0Ac1DOKdT__Ctbs5qEQF0/pub?gid=439312959&single=true&output=csv',
   },
 ];
 const CACHE_MS = 5 * 60 * 1000;
 
-/* Tách SHEET_ID + gid ra khỏi link dán vào */
+/* ═══════════════════════════════════════════════════════
+   SCHEMAS — mỗi loại sheet có cột, đơn vị tiền và cách
+   nhóm khác nhau; phần còn lại của dashboard dùng chung.
+═══════════════════════════════════════════════════════ */
+const GRP_QTY='SL ≥ 1', GRP_ZERO='SL = 0';
+
+const SCHEMAS = {
+  /* Sổ cấp hàng: SKU · ngày cấp · giá vốn (nghìn đ) · trạng thái · BU */
+  ritokey:{
+    currency:'VND',
+    showBU:true,
+    itemLabel:'SKU',
+    itemShort:'SKU',
+    groupLabel:'Trạng thái',
+    // cột dò theo tên header, kèm vị trí dự phòng nếu không thấy tên
+    cols:{
+      item  :{names:['sku','ma sku'],                          fallback:1},
+      date  :{names:['ngay cap','date'],                       fallback:3},
+      amount:{names:['gia von','cost'],                        fallback:5},
+      group :{names:['trang thai','status','tinh trang','tt'], fallback:7},
+      bu    :{names:['team','bu','team (bu)'],                 fallback:8},
+      stt   :{names:['stt'],                                   fallback:0},
+    },
+    amountScale:1000,                                  // giá vốn ghi theo đơn vị nghìn
+    // dòng header = dòng chứa ô "STT" (hoặc "SKU") ở bất kỳ cột nào
+    findHeader(rows){
+      let i=rows.findIndex(r=>r.some(c=>normHeader(c)==='stt'));
+      if(i===-1) i=rows.findIndex(r=>r.some(c=>normHeader(c)==='sku'));
+      return i===-1?6:i;
+    },
+    // chuẩn hoá giá trị cột trạng thái
+    groupOf(rawStatus){
+      const sl=(rawStatus||'').toLowerCase();
+      if(/^done$|hoàn t|hoan t/.test(sl)) return 'Done';
+      if(/cancel|huỷ|hủy/.test(sl))       return 'Cancel';
+      return rawStatus || '—';
+    },
+    statusFilter:[{v:'all',t:'Tất cả'},{v:'Done',t:'Done'},{v:'Cancel',t:'Cancel'}],
+    weekSeries:[
+      {v:'Done',  t:'Done',   tag:'green', color:'rgba(5,150,105,.75)',  match:r=>r[4]==='Done'},
+      {v:'Cancel',t:'Cancel', tag:'red',   color:'rgba(220,38,38,.75)',  match:r=>r[4]==='Cancel'},
+      {v:'Other', t:'Khác',   tag:'yellow',color:'rgba(217,119,6,.65)',  match:r=>r[4]!=='Done'&&r[4]!=='Cancel'},
+    ],
+    weekMeasure: rows=>rows.length,                    // biểu đồ tuần đếm số đơn
+    weekUnit:   ' đơn',
+    lineLabel:  'Số đơn',
+    lineMeasure:rows=>rows.length,
+    lineUnit:   ' đơn',
+    titles:{
+      combo:'Giá Vốn & Số Đơn Theo Ngày', comboHint:'Cột = Giá vốn · Đường = Số đơn',
+      week :'Trạng Thái Đơn Hàng Theo Tuần',
+      item :'Top SKU theo Giá Vốn',
+      bu   :'Theo BU & Trạng thái', buCol:'BU', amountCol:'Giá vốn', countCol:'Đơn',
+    },
+    kpis(f){
+      const n=f.length, rev=f.reduce((s,r)=>s+r[3],0);
+      const avg=n?Math.round(rev/n):0;
+      const cx=f.filter(r=>r[4]==='Cancel').length;
+      return [
+        {label:'Tổng đơn hàng', val:String(n),                   sub:'đơn được cấp'},
+        {label:'Tổng giá vốn',  val:money(rev),                  sub:moneyFull(rev)},
+        {label:'Trung bình / đơn', val:money(avg),               sub:moneyFull(avg)},
+        {label:'Tỷ lệ Cancel',  val:(n?((cx/n)*100).toFixed(1):'0.0')+'%', sub:cx+' đơn bị huỷ'},
+      ];
+    },
+  },
+
+  /* Doanh thu HQC300: A=thời gian · B=sản phẩm · C=số lượng · D=doanh thu (USD).
+     Dòng số lượng = 0 vẫn tính doanh thu, nhưng tách riêng khỏi dòng có SL ≥ 1. */
+  revenue:{
+    currency:'USD',
+    showBU:false,
+    itemLabel:'Sản phẩm',
+    itemShort:'SP',
+    groupLabel:'Nhóm số lượng',
+    cols:{
+      date  :{names:['thoi gian','ngay','ngay ban','date','time'], fallback:0},  // cột A
+      item  :{names:['ten san pham','san pham','product','item'],  fallback:1},  // cột B
+      qty   :{names:['so luong','sl','qty','quantity'],            fallback:2},  // cột C
+      amount:{names:['doanh thu','revenue','amount','usd'],        fallback:3},  // cột D
+    },
+    amountScale:1,
+    // dòng nào có từ 2 ô trùng tên cột đã khai báo thì đó là header.
+    // Không thấy (-1) ⇒ sheet không có header, đọc thẳng từ dòng đầu theo cột A/B/C/D.
+    findHeader(rows){
+      const names=new Set();
+      Object.values(SCHEMAS.revenue.cols).forEach(d=>d.names.forEach(n=>names.add(normHeader(n))));
+      return rows.findIndex(r=>r.filter(c=>names.has(normHeader(c))).length>=2);
+    },
+    // giữ dòng SL = 0 miễn là có doanh thu; chỉ bỏ dòng rỗng hoàn toàn
+    keep:r=>r[3]!==0||r[6]>0,
+    // nhóm theo số lượng: 0 tách riêng khỏi ≥ 1
+    groupOfQty:q=>q>0?GRP_QTY:GRP_ZERO,
+    statusFilter:[{v:'all',t:'Tất cả'},{v:GRP_QTY,t:GRP_QTY},{v:GRP_ZERO,t:GRP_ZERO}],
+    weekSeries:[
+      {v:GRP_QTY, t:GRP_QTY,  tag:'green', color:'rgba(5,150,105,.75)', match:r=>r[4]===GRP_QTY},
+      {v:GRP_ZERO,t:GRP_ZERO, tag:'yellow',color:'rgba(217,119,6,.70)', match:r=>r[4]===GRP_ZERO},
+    ],
+    weekMeasure: rows=>rows.reduce((s,r)=>s+r[3],0),    // biểu đồ tuần cộng doanh thu
+    weekUnit:   '',
+    weekIsMoney:true,
+    lineLabel:  'Số lượng',
+    lineMeasure:rows=>rows.reduce((s,r)=>s+(r[6]||0),0),
+    lineUnit:   '',
+    titles:{
+      combo:'Doanh Thu & Số Lượng Theo Ngày', comboHint:'Cột = Doanh thu · Đường = Số lượng',
+      week :'Doanh Thu Theo Tuần & Nhóm Số Lượng',
+      item :'Top Sản Phẩm theo Doanh Thu',
+      bu   :'Theo Nhóm Số Lượng', buCol:'Nhóm', amountCol:'Doanh thu', countCol:'Dòng',
+    },
+    kpis(f){
+      const rev  = f.reduce((s,r)=>s+r[3],0);
+      const withQ= f.filter(r=>r[4]===GRP_QTY),  zeroQ=f.filter(r=>r[4]===GRP_ZERO);
+      const revQ = withQ.reduce((s,r)=>s+r[3],0), revZ=zeroQ.reduce((s,r)=>s+r[3],0);
+      const qty  = f.reduce((s,r)=>s+(r[6]||0),0);
+      const pct  = v=>rev?((v/rev)*100).toFixed(1)+'%':'0.0%';
+      return [
+        {label:'Tổng doanh thu',      val:money(rev), sub:`${moneyFull(rev)} · ${f.length} dòng`},
+        {label:`Doanh thu ${GRP_QTY}`,val:money(revQ),sub:`${withQ.length} dòng · ${pct(revQ)} tổng DT`},
+        {label:`Doanh thu ${GRP_ZERO}`,val:money(revZ),sub:`${zeroQ.length} dòng · ${pct(revZ)} tổng DT`},
+        {label:'Tổng số lượng',       val:String(qty),sub:qty?`TB ${moneyFull(revQ/qty)} / sản phẩm`:'chưa có số lượng'},
+      ];
+    },
+  },
+};
+const curSchema = () => SCHEMAS[curSrc().schema || 'ritokey'];
+
+/* Tách link sheet thành URL CSV. Nhận cả 2 dạng:
+   - Link sheet thường:  .../spreadsheets/d/<ID>/edit#gid=<GID>
+   - Link "Xuất bản lên web": .../spreadsheets/d/e/2PACX-.../pub?output=csv  */
 function csvUrlOf(src){
   if(!src || !src.url) return null;
   const raw = src.url.trim();
   if(!raw) return null;
+
+  // Dạng publish-to-web: ID nằm sau /d/e/ và không dùng được /export → giữ nguyên link
+  if(/\/spreadsheets\/d\/e\//.test(raw)){
+    if(/output=csv/.test(raw)) return raw;
+    return raw.replace(/\/pub[^]*$/, '/pub?output=csv');
+  }
+  if(/output=csv/.test(raw)) return raw;
+
   const idm = raw.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/) || raw.match(/^([a-zA-Z0-9-_]{30,})$/);
   if(!idm) return null;
   const gidm = raw.match(/[#&?]gid=(\d+)/);
@@ -836,6 +966,19 @@ const fmt = n =>
 
 const fmtFull = n => n.toLocaleString('vi-VN')+'đ';
 
+// USD: con số nhỏ hơn VNĐ ~25.000 lần nên ngưỡng rút gọn phải khác
+const fmtUSD = n => {
+  const a=Math.abs(n);
+  return a>=1_000_000 ? '$'+(n/1_000_000).toFixed(2)+'M'
+       : a>=10_000    ? '$'+(n/1_000).toFixed(1)+'K'
+       : '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+};
+const fmtUSDFull = n => '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+// Tiền theo đơn vị của trang đang xem
+function money(n){     return curSchema().currency==='USD' ? fmtUSD(n)     : fmt(n);     }
+function moneyFull(n){ return curSchema().currency==='USD' ? fmtUSDFull(n) : fmtFull(n); }
+
 function getWeekLabel(dateStr){
   const [d,m]=dateStr.split('/').map(Number);
   const dt=new Date(2026,m-1,d);
@@ -846,7 +989,10 @@ function getWeekLabel(dateStr){
   return `${f(mon)}–${f(sun)}`;
 }
 
-function normalizeDate(raw){
+function normalizeDate(input){
+  if(!input) return null;
+  // Cột "Thời gian" có thể kèm giờ ("10/07/2026 14:30", "2026-07-10T14:30") → chỉ lấy phần ngày
+  const raw=input.toString().trim().split(/[ T]/)[0];
   if(!raw) return null;
   const dm=raw.match(/^(\d{1,2})\/(\d{1,2})(?:\/\d{2,4})?$/);
   if(dm){
@@ -863,6 +1009,26 @@ function normalizeDate(raw){
 }
 
 function parseNum(s){ return Number((s||'').replace(/[^\d.-]/g,''))||0; }
+
+// Đọc số tiền chấp nhận cả "1,234.56" (US) lẫn "1.234,56" (VN) và ký hiệu $ / đ
+function parseAmount(s){
+  let t=(s==null?'':s).toString().trim().replace(/[^\d.,-]/g,'');
+  if(!t) return 0;
+  const c=t.lastIndexOf(','), d=t.lastIndexOf('.');
+  if(c>-1 && d>-1){
+    // dấu nào đứng sau cùng thì đó là dấu thập phân
+    t = c>d ? t.replace(/\./g,'').replace(',','.') : t.replace(/,/g,'');
+  } else if(c>-1){
+    t = /,\d{3}$/.test(t) ? t.replace(/,/g,'') : t.replace(',','.');
+  } else if((t.match(/\./g)||[]).length>1){
+    t = t.replace(/\./g,'');            // nhiều dấu chấm ⇒ phân cách nghìn
+  }
+  return Number(t)||0;
+}
+function parseQty(s){
+  const n=parseAmount(s);
+  return Number.isFinite(n) ? n : 0;
+}
 
 // Chuẩn hoá tên cột (bỏ dấu tiếng Việt, lowercase) để dò header linh hoạt
 function normHeader(s){
@@ -890,46 +1056,42 @@ async function loadData(force=false){
     const result=Papa.parse(text,{skipEmptyLines:false});
     const allRows=result.data;
 
-    // Tìm header row: dòng có ô "STT" (hoặc "SKU") ở BẤT KỲ cột nào
-    let headerIdx=allRows.findIndex(r=>r.some(c=>normHeader(c)==='stt'));
-    if(headerIdx===-1) headerIdx=allRows.findIndex(r=>r.some(c=>normHeader(c)==='sku'));
-    if(headerIdx===-1) headerIdx=6;
+    const sc=SCHEMAS[src.schema||'ritokey'];
 
-    // ✅ FIX: dò cột theo TÊN header thay vì vị trí cố định
-    // → thêm/chèn cột trong sheet không còn làm vỡ dashboard
-    const headerRow=allRows[headerIdx]||[];
+    // Tìm dòng header theo cách riêng của từng loại sheet (-1 = sheet không có header)
+    const headerIdx=sc.findHeader(allRows);
+
+    // Dò cột theo TÊN header, không thấy thì lùi về vị trí cột mặc định
+    // → thêm/chèn cột trong sheet không làm vỡ dashboard
     const colIndex={};
-    headerRow.forEach((c,i)=>{ const k=normHeader(c); if(k && !(k in colIndex)) colIndex[k]=i; });
-    const findCol=(cands,fallback)=>{
-      for(const name of cands){ const k=normHeader(name); if(k in colIndex) return colIndex[k]; }
-      return fallback;
+    (allRows[headerIdx]||[]).forEach((c,i)=>{ const k=normHeader(c); if(k && !(k in colIndex)) colIndex[k]=i; });
+    const iOf=key=>{
+      const def=sc.cols[key];
+      if(!def) return -1;
+      for(const name of def.names){ const k=normHeader(name); if(k in colIndex) return colIndex[k]; }
+      return def.fallback;
     };
-    const iSTT    = findCol(['stt'], 0);
-    const iSKU    = findCol(['sku','ma sku'], 1);
-    const iDate   = findCol(['ngay cap','date'], 3);
-    const iCost   = findCol(['gia von','cost'], 5);
-    const iStatus = findCol(['trang thai','status','tinh trang','tt'], 7); // Trạng thái = cột H
-    const iBU     = findCol(['team','bu','team (bu)'], 8);
+    const iItem=iOf('item'), iDate=iOf('date'), iAmt=iOf('amount'),
+          iGroup=iOf('group'), iBU=iOf('bu'), iQty=iOf('qty'), iSTT=iOf('stt');
 
     const rows=allRows.slice(headerIdx+1).filter(r=>r.some(c=>c?.toString().trim()));
     if(!rows.length) throw new Error('Sheet trống hoặc header không đúng');
 
+    const cell=(c,i)=> i>=0 ? (c[i]==null?'':c[i].toString().trim()) : '';
     const parsed=rows.map(c=>{
-      const sku   = c[iSKU]?.trim();
-      const date  = normalizeDate(c[iDate]?.trim());
-      const cost  = parseNum(c[iCost]) * 1000;   // Giá vốn (đơn vị nghìn)
-      const rawStatus = c[iStatus]?.trim() || '';
-      const sl = rawStatus.toLowerCase();
-      const status = /^done$|hoàn t|hoan t/.test(sl) ? 'Done'
-                   : /cancel|huỷ|hủy/.test(sl)        ? 'Cancel'
-                   : (rawStatus || '—');
-      const bu    = c[iBU]?.trim()||'—';
-      if(!date||!sku) return null;
-      return [c[iSTT]?.trim(), sku, date, cost, status, bu];
-    }).filter(Boolean);
+      const item = cell(c,iItem);
+      const date = normalizeDate(cell(c,iDate));
+      if(!date||!item) return null;
+      const amount = (sc.currency==='USD' ? parseAmount(cell(c,iAmt)) : parseNum(cell(c,iAmt))) * sc.amountScale;
+      const qty    = iQty>=0 ? parseQty(cell(c,iQty)) : 0;
+      const group  = sc.groupOf ? sc.groupOf(cell(c,iGroup)) : sc.groupOfQty(qty);
+      const bu     = cell(c,iBU) || '—';
+      return [cell(c,iSTT), item, date, amount, group, bu, qty];
+    }).filter(Boolean).filter(r=>sc.keep?sc.keep(r):true);
 
     if(!parsed.length) throw new Error(
-      `Không parse được dòng nào — cột dò được: SKU=${iSKU}, Ngày=${iDate}, Giá=${iCost}, TT=${iStatus}, BU=${iBU}. Kiểm tra header sheet.`);
+      `Không parse được dòng nào — cột dò được: ${sc.itemLabel}=${iItem}, Ngày=${iDate}, Tiền=${iAmt}`
+      + (iQty>=0?`, SL=${iQty}`:'') + (iGroup>=0?`, Nhóm=${iGroup}`:'') + `. Kiểm tra header sheet.`);
 
     st.RAW=parsed;
     st.cachedAt=Date.now();
@@ -987,9 +1149,10 @@ function paintStatusTags(){
   });
 }
 function paintWeekTags(){
-  const map={all:'blue',Done:'green',Cancel:'red',Other:'yellow'};
+  const sc=curSchema();
+  const color=v=>v==='all'?'blue':(sc.weekSeries.find(s=>s.v===v)?.tag||'blue');
   document.querySelectorAll('#f-week-status .tag').forEach(t=>{
-    t.className='tag'+(t.dataset.v===S.weekStatusFilter?` active-${map[t.dataset.v]||'blue'}`:'');
+    t.className='tag'+(t.dataset.v===S.weekStatusFilter?` active-${color(t.dataset.v)}`:'');
   });
 }
 function setStatus(el){
@@ -1011,7 +1174,8 @@ function toggleSKU(sku,cb){
 function skuAll(){ S.selSKUs=new Set(S.ALL_SKUS); initFilters(); render(); }
 function skuNone(){ S.selSKUs=new Set(); initFilters(); render(); }
 function updateSKULabel(){
-  document.getElementById('sku-count-label').textContent=`${S.selSKUs.size}/${S.ALL_SKUS.length} SKU`;
+  document.getElementById('sku-count-label').textContent=
+    `${S.selSKUs.size}/${S.ALL_SKUS.length} ${curSchema().itemShort}`;
 }
 
 let skuPanelOpen=false;
@@ -1048,23 +1212,28 @@ function getFiltered(){
 }
 
 /* ─── Render ──────────────────────────────────────────── */
-function render(){
-  const f=getFiltered();
-  const total=f.length;
-  const rev=f.reduce((s,r)=>s+r[3],0);
-  const avg=total>0?Math.round(rev/total):0;
-  const cancel=f.filter(r=>r[4]==='Cancel').length;
-  const cancelRate=total>0?((cancel/total)*100).toFixed(1):'0.0';
+const KPI_SLOTS=[
+  ['kpi-orders-label','kpi-orders','kpi-orders-sub'],
+  ['kpi-rev-label',   'kpi-rev',   'kpi-rev-full'],
+  ['kpi-avg-label',   'kpi-avg',   'kpi-avg-full'],
+  ['kpi-cancel-label','kpi-cancel','kpi-cancel-sub'],
+];
 
-  document.getElementById('h-orders').textContent=total;
-  document.getElementById('h-rev').textContent=fmt(rev)+'đ';
-  document.getElementById('kpi-orders').textContent=total;
-  document.getElementById('kpi-rev').textContent=fmt(rev);
-  document.getElementById('kpi-rev-full').textContent=fmtFull(rev);
-  document.getElementById('kpi-avg').textContent=fmt(avg);
-  document.getElementById('kpi-avg-full').textContent=fmtFull(avg);
-  document.getElementById('kpi-cancel').textContent=cancelRate+'%';
-  document.getElementById('kpi-cancel-sub').textContent=cancel+' đơn bị huỷ';
+function render(){
+  const sc=curSchema();
+  const f=getFiltered();
+  const rev=f.reduce((s,r)=>s+r[3],0);
+
+  document.getElementById('h-orders').textContent=f.length;
+  document.getElementById('h-rev').textContent=money(rev);
+
+  // 4 thẻ KPI do schema quyết định nội dung
+  sc.kpis(f).forEach((card,i)=>{
+    const [lbl,val,sub]=KPI_SLOTS[i];
+    document.getElementById(lbl).textContent=card.label;
+    document.getElementById(val).textContent=card.val;
+    document.getElementById(sub).textContent=card.sub;
+  });
 
   const upd=S.cachedAt?new Date(S.cachedAt).toLocaleString('vi-VN'):'—';
   document.getElementById('last-updated').textContent=S.cachedAt?new Date(S.cachedAt).toLocaleTimeString('vi-VN'):'—';
@@ -1085,17 +1254,18 @@ const CHART_DEFAULTS={
 
 /* ─── Combo chart ─────────────────────────────────────── */
 function renderComboChart(f){
+  const sc=curSchema();
   const dates=S.ALL_DATES.filter(d=>f.some(r=>r[2]===d));
   const revData=dates.map(d=>f.filter(r=>r[2]===d).reduce((s,r)=>s+r[3],0));
-  const ordData=dates.map(d=>f.filter(r=>r[2]===d).length);
+  const ordData=dates.map(d=>sc.lineMeasure(f.filter(r=>r[2]===d)));
 
   if(chartCombo) chartCombo.destroy();
   const ctx=document.getElementById('chart-combo').getContext('2d');
   chartCombo=new Chart(ctx,{
     data:{labels:dates,datasets:[
-      {type:'bar',label:'Giá vốn',data:revData,
+      {type:'bar',label:sc.titles.amountCol,data:revData,
        backgroundColor:'rgba(5,150,105,.65)',borderRadius:5,yAxisID:'y'},
-      {type:'line',label:'Số đơn',data:ordData,
+      {type:'line',label:sc.lineLabel,data:ordData,
        borderColor:'#d97706',backgroundColor:'transparent',borderWidth:2.5,
        pointBackgroundColor:'#d97706',pointRadius:4,tension:.3,yAxisID:'y2'},
     ]},
@@ -1105,12 +1275,14 @@ function renderComboChart(f){
         legend:{labels:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:11}}},
         tooltip:{backgroundColor:'#fff',borderColor:'#dde4f0',borderWidth:1,
           titleColor:'#64748b',bodyColor:'#1e2d4d',
-          callbacks:{label:c=>c.dataset.label==='Số đơn'?c.parsed.y+' đơn':fmtFull(c.parsed.y)}},
+          callbacks:{label:c=>c.dataset.label===sc.lineLabel
+            ? c.parsed.y+sc.lineUnit
+            : moneyFull(c.parsed.y)}},
       },
       scales:{
         x:{ticks:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:10}},
            grid:{color:CHART_DEFAULTS.gridColor},border:{color:CHART_DEFAULTS.gridColor}},
-        y:{ticks:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:10},callback:fmt},
+        y:{ticks:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:10},callback:v=>money(v)},
            grid:{color:CHART_DEFAULTS.gridColor},border:{display:false}},
         y2:{position:'right',ticks:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:10}},
             grid:{display:false},border:{display:false}},
@@ -1126,27 +1298,34 @@ function renderWeeklyChart(){
     if(S.drStart||S.drEnd){const dt=dateStrToObj(d);if(S.drStart&&dt<S.drStart)return false;if(S.drEnd&&dt>S.drEnd)return false;}
     return true;
   }));
+  const sc=curSchema();
   const showSt=v=>S.weekStatusFilter==='all'||S.weekStatusFilter===v;
 
-  const makeData=(filter)=>weeks.map(w=>S.RAW.filter(r=>{
-    if(getWeekLabel(r[2])!==w||!S.selSKUs.has(r[1])||!S.selBUs.has(r[5]||'—')) return false;
-    if(!filter(r)) return false;
-    if(S.drStart||S.drEnd){const dt=dateStrToObj(r[2]);if(S.drStart&&dt<S.drStart)return false;if(S.drEnd&&dt>S.drEnd)return false;}
-    return true;
-  }).length);
+  // Lọc chung (SKU/BU/khoảng ngày) rồi gom theo tuần — mỗi dòng chỉ tính week label 1 lần
+  const byWeek={};
+  weeks.forEach(w=>byWeek[w]=[]);
+  S.RAW.forEach(r=>{
+    if(!S.selSKUs.has(r[1])||!S.selBUs.has(r[5]||'—')) return;
+    if(S.drStart||S.drEnd){const dt=dateStrToObj(r[2]);if(S.drStart&&dt<S.drStart)return;if(S.drEnd&&dt>S.drEnd)return;}
+    const w=getWeekLabel(r[2]);
+    if(byWeek[w]) byWeek[w].push(r);
+  });
 
-  const doneData  =showSt('Done')  ?makeData(r=>r[4]==='Done')  :weeks.map(()=>0);
-  const cancelData=showSt('Cancel')?makeData(r=>r[4]==='Cancel'):weeks.map(()=>0);
-  const otherData =showSt('Other') ?makeData(r=>r[4]!=='Done'&&r[4]!=='Cancel'):weeks.map(()=>0);
-  const totalData =weeks.map((_,i)=>doneData[i]+cancelData[i]+otherData[i]);
+  const series=sc.weekSeries.map(s=>({
+    ...s,
+    data: showSt(s.v) ? weeks.map(w=>sc.weekMeasure(byWeek[w].filter(s.match))) : weeks.map(()=>0),
+  }));
+  const totalData=weeks.map((_,i)=>series.reduce((sum,s)=>sum+s.data[i],0));
+  const last=series.length-1;
 
   if(chartWeekly) chartWeekly.destroy();
   const ctx=document.getElementById('chart-weekly').getContext('2d');
   chartWeekly=new Chart(ctx,{
     data:{labels:weeks,datasets:[
-      {type:'bar',label:'Done',  data:doneData,  backgroundColor:'rgba(5,150,105,.75)',  stack:'s',borderRadius:0},
-      {type:'bar',label:'Cancel',data:cancelData,backgroundColor:'rgba(220,38,38,.75)',  stack:'s'},
-      {type:'bar',label:'Khác', data:otherData, backgroundColor:'rgba(217,119,6,.65)', stack:'s',borderRadius:{topLeft:5,topRight:5}},
+      ...series.map((s,i)=>({
+        type:'bar',label:s.t,data:s.data,backgroundColor:s.color,stack:'s',
+        borderRadius:i===last?{topLeft:5,topRight:5}:0,
+      })),
       {type:'line',label:'Tổng',data:totalData,borderColor:'#7c3aed',backgroundColor:'transparent',
        borderWidth:2.5,pointBackgroundColor:'#7c3aed',pointRadius:3,tension:.3},
     ]},
@@ -1156,12 +1335,13 @@ function renderWeeklyChart(){
         legend:{labels:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:11}}},
         tooltip:{backgroundColor:'#fff',borderColor:'#dde4f0',borderWidth:1,
           titleColor:'#64748b',bodyColor:'#1e2d4d',
-          callbacks:{label:c=>c.parsed.y+' đơn'}},
+          callbacks:{label:c=>sc.weekIsMoney?moneyFull(c.parsed.y):c.parsed.y+sc.weekUnit}},
       },
       scales:{
         x:{ticks:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:10}},
            grid:{color:CHART_DEFAULTS.gridColor},border:{color:CHART_DEFAULTS.gridColor}},
-        y:{ticks:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:10}},
+        y:{ticks:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:10},
+             callback:v=>sc.weekIsMoney?money(v):v},
            grid:{color:CHART_DEFAULTS.gridColor},border:{display:false}},
       }
     }
@@ -1181,7 +1361,7 @@ function renderSKUBars(f){
       <div class="sku-name" title="${item.sku}">${item.sku.replace(/_$/,'')}</div>
       <div class="sku-bar-bg">
         <div class="sku-bar" style="width:${pct}%;background:linear-gradient(90deg,${c}22,${c}60);border-left:3px solid ${c}">
-          <span style="color:${c}">${fmt(item.rev)}</span>
+          <span style="color:${c}">${money(item.rev)}</span>
         </div>
       </div>
       <div class="sku-count" style="color:${c}">${item.n}</div>
@@ -1191,29 +1371,37 @@ function renderSKUBars(f){
 
 /* ─── BU rows ─────────────────────────────────────────── */
 function renderBURows(f){
+  const sc=curSchema();
+  // Sheet có cột BU → gom theo BU; sheet không có → gom theo nhóm (SL ≥ 1 / SL = 0)
+  const keyIdx=sc.showBU?5:4;
   const m={};
-  f.forEach(([,,,cost,,bu])=>{ const k=bu||'—'; if(!m[k])m[k]={bu:k,rev:0,n:0}; m[k].rev+=cost; m[k].n++; });
+  f.forEach(r=>{ const k=r[keyIdx]||'—'; if(!m[k])m[k]={bu:k,rev:0,n:0}; m[k].rev+=r[3]; m[k].n++; });
   const sorted=Object.values(m).sort((a,b)=>b.rev-a.rev);
+  const groupColor=g=>sc.weekSeries.find(s=>s.v===g)?.color||'#64748b';
+
   document.getElementById('bu-rows').innerHTML=sorted.map(item=>{
-    const c=BU_COLORS[item.bu]||'#64748b';
+    const c=sc.showBU?(BU_COLORS[item.bu]||'#64748b'):groupColor(item.bu);
     return `<div class="bu-row">
       <div class="bu-left"><div class="bu-dot" style="background:${c}"></div><div class="bu-name">${item.bu}</div></div>
-      <div class="bu-nums"><span class="bu-rev">${fmt(item.rev)}</span><span class="bu-ord">${item.n}</span></div>
+      <div class="bu-nums"><span class="bu-rev">${money(item.rev)}</span><span class="bu-ord">${item.n}</span></div>
     </div>`;
   }).join('');
 
-  const statusRows=[{l:'Done',c:'var(--green)'},{l:'Cancel',c:'var(--red)'}].map(({l,c})=>{
+  // Dòng tổng kết theo trạng thái chỉ có ý nghĩa với sheet có cột trạng thái
+  const box=document.getElementById('status-rows');
+  if(!sc.showBU){ box.style.display='none'; box.innerHTML=''; return; }
+  box.style.display='';
+  box.innerHTML=[{l:'Done',c:'var(--green)'},{l:'Cancel',c:'var(--red)'}].map(({l,c})=>{
     const rows=f.filter(r=>r[4]===l);
     const rev=rows.reduce((s,r)=>s+r[3],0);
     return `<div class="bu-row" style="background:${l==='Done'?'var(--green-l)':'var(--red-l)'};border-color:${l==='Done'?'var(--green)33':'var(--red)33'}">
       <div class="bu-left"><div class="bu-dot" style="background:${c}"></div><div class="bu-name">${l}</div></div>
       <div class="bu-nums">
-        <span style="font-family:var(--mono);font-size:11px;color:${c};font-weight:600">${fmt(rev)}</span>
+        <span style="font-family:var(--mono);font-size:11px;color:${c};font-weight:600">${money(rev)}</span>
         <span class="bu-ord">${rows.length}</span>
       </div>
     </div>`;
   }).join('');
-  document.getElementById('status-rows').innerHTML=statusRows;
 }
 
 /* ─── UI helpers ──────────────────────────────────────── */
@@ -1499,11 +1687,36 @@ function renderNav(){
   }).join('');
 }
 
-/* Đồng bộ header + trạng thái các nút lọc theo trang đang xem */
+/* Đồng bộ header, nhãn và trạng thái các nút lọc theo trang đang xem */
 function syncFilterUI(){
-  const src=curSrc();
-  document.getElementById('page-title').textContent=src.title;
-  document.getElementById('src-name').textContent=src.sub;
+  const src=curSrc(), sc=curSchema();
+  const put=(id,txt)=>{ document.getElementById(id).textContent=txt; };
+
+  put('page-title',src.title);
+  put('src-name',  src.sub);
+
+  // Nhãn đổi theo loại sheet
+  put('lbl-status',     sc.groupLabel);
+  put('lbl-item',       sc.itemLabel);
+  put('h-unit',         sc.showBU?'đơn':'dòng');
+  put('sec-combo',      sc.titles.combo);
+  put('sec-combo-hint', sc.titles.comboHint);
+  put('sec-week',       sc.titles.week);
+  put('sec-item',       sc.titles.item);
+  put('sec-bu',         sc.titles.bu);
+  put('th-bu',          sc.titles.buCol);
+  put('th-amount',      sc.titles.amountCol);
+  put('th-count',       sc.titles.countCol);
+  document.getElementById('fg-bu').style.display=sc.showBU?'':'none';
+
+  // Nút lọc nhóm: Trạng thái (Done/Cancel) hoặc Nhóm số lượng (SL ≥ 1 / SL = 0)
+  document.getElementById('f-status').innerHTML=sc.statusFilter
+    .map(o=>`<span class="tag" data-v="${o.v}" onclick="setStatus(this)">${o.t}</span>`).join('');
+  document.getElementById('f-week-status').innerHTML=
+    [`<span class="tag" data-v="all" onclick="setWeekStatus(this)">Tất cả</span>`]
+    .concat(sc.weekSeries.map(s=>`<span class="tag" data-v="${s.v}" onclick="setWeekStatus(this)">${s.t}</span>`))
+    .join('');
+
   paintStatusTags();
   paintWeekTags();
   updateDRLabel();
