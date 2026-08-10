@@ -160,10 +160,20 @@ header{
   box-shadow:var(--shadow-md);
 }
 #sku-panel.open{display:block}
-.sku-ctrl{display:flex;gap:12px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.sku-search{
+  width:100%;padding:7px 10px;margin-bottom:8px;
+  border:1.5px solid var(--border);border-radius:8px;
+  font-family:var(--mono);font-size:11px;color:var(--text);
+  background:var(--bg2);outline:none;transition:all .15s;
+}
+.sku-search::placeholder{color:var(--muted2)}
+.sku-search:focus{border-color:var(--blue);background:var(--bg1)}
+.sku-ctrl{display:flex;gap:12px;align-items:center;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)}
 .sku-ctrl span{font-size:10px;font-family:var(--mono);cursor:pointer;text-decoration:underline}
 .sku-ctrl .all{color:var(--blue)}
 .sku-ctrl .none{color:var(--red)}
+.sku-ctrl .sku-found{margin-left:auto;color:var(--muted2);text-decoration:none;cursor:default}
+.sku-empty{grid-column:1/-1;padding:14px 6px;text-align:center;font-size:10px;font-family:var(--mono);color:var(--muted2)}
 .sku-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px;max-height:200px;overflow-y:auto}
 .sku-item{
   display:flex;align-items:center;gap:6px;padding:5px 6px;
@@ -648,7 +658,7 @@ footer{
       </div>
       <!-- BU (ẩn với sheet không có cột BU) -->
       <div class="filter-group" id="fg-bu">
-        <div class="filter-label">Business Unit</div>
+        <div class="filter-label" id="lbl-bu">Business Unit</div>
         <div class="tags" id="f-bus"></div>
       </div>
       <!-- Trạng thái / Nhóm số lượng -->
@@ -664,9 +674,12 @@ footer{
             ⬡ <span id="sku-count-label">—</span> <span id="sku-arrow">▾</span>
           </button>
           <div id="sku-panel">
+            <input class="sku-search" id="sku-search" type="text" placeholder="🔍 Gõ để tìm nhanh…"
+                   autocomplete="off" spellcheck="false" oninput="filterSKUList()">
             <div class="sku-ctrl">
-              <span class="all" onclick="skuAll()">Chọn tất cả</span>
+              <span class="all"  onclick="skuAll()">Chọn tất cả</span>
               <span class="none" onclick="skuNone()">Bỏ chọn</span>
+              <span class="sku-found" id="sku-found"></span>
             </div>
             <div class="sku-grid" id="sku-list"></div>
           </div>
@@ -782,9 +795,20 @@ const SOURCES = [
     title: 'DOANH THU HQC300',
     sub:   'Doanh thu · USD',
     schema:'revenue',
-    url:   'https://docs.google.com/spreadsheets/d/e/2PACX-1vRmS_1fIY0T41-7w2Jl59I1Luenz88YBfPHu2wYoAO_pz6zZ-je9iCuLJE0Ac1DOKdT__Ctbs5qEQF0/pub?gid=439312959&single=true&output=csv',
+    // Nhiều sheet gộp chung 1 trang; `name` trở thành tên SÀN của mọi dòng trong sheet đó.
+    // Đổi sàn / thêm sàn: sửa danh sách này, phần còn lại tự chạy theo.
+    sheets:[
+      { name:'G2G',    url:'https://docs.google.com/spreadsheets/d/e/2PACX-1vRmS_1fIY0T41-7w2Jl59I1Luenz88YBfPHu2wYoAO_pz6zZ-je9iCuLJE0Ac1DOKdT__Ctbs5qEQF0/pub?gid=439312959&single=true&output=csv' },
+      { name:'Gamsgo', url:'https://docs.google.com/spreadsheets/d/e/2PACX-1vRmS_1fIY0T41-7w2Jl59I1Luenz88YBfPHu2wYoAO_pz6zZ-je9iCuLJE0Ac1DOKdT__Ctbs5qEQF0/pub?gid=934498858&single=true&output=csv' },
+    ],
   },
 ];
+
+/* Danh sách sheet của một trang, đã chuẩn hoá thành {name, csv} */
+function sheetsOf(src){
+  const list = src.sheets && src.sheets.length ? src.sheets : [{name:'', url:src.url}];
+  return list.map(s=>({name:s.name||'', csv:csvUrlOf(s)})).filter(s=>s.csv);
+}
 const CACHE_MS = 5 * 60 * 1000;
 
 /* ═══════════════════════════════════════════════════════
@@ -797,7 +821,9 @@ const SCHEMAS = {
   /* Sổ cấp hàng: SKU · ngày cấp · giá vốn (nghìn đ) · trạng thái · BU */
   ritokey:{
     currency:'VND',
-    showBU:true,
+    showBU:true,              // hiện bộ lọc BU đa chọn
+    buLabel:'Business Unit',
+    filterField:4,            // ô lọc đơn chọn áp lên cột trạng thái
     itemLabel:'SKU',
     itemShort:'SKU',
     groupLabel:'Trạng thái',
@@ -824,7 +850,7 @@ const SCHEMAS = {
       if(/cancel|huỷ|hủy/.test(sl))       return 'Cancel';
       return rawStatus || '—';
     },
-    statusFilter:[{v:'all',t:'Tất cả'},{v:'Done',t:'Done'},{v:'Cancel',t:'Cancel'}],
+    statusFilter:()=>[{v:'all',t:'Tất cả'},{v:'Done',t:'Done'},{v:'Cancel',t:'Cancel'}],
     weekSeries:[
       {v:'Done',  t:'Done',   tag:'green', color:'rgba(5,150,105,.75)',  match:r=>r[4]==='Done'},
       {v:'Cancel',t:'Cancel', tag:'red',   color:'rgba(220,38,38,.75)',  match:r=>r[4]==='Cancel'},
@@ -858,10 +884,13 @@ const SCHEMAS = {
      Dòng số lượng = 0 vẫn tính doanh thu, nhưng tách riêng khỏi dòng có SL ≥ 1. */
   revenue:{
     currency:'USD',
-    showBU:false,
+    showBU:false,             // sàn đã có ô lọc đơn chọn riêng, không cần thêm bộ lọc đa chọn
+    buLabel:'Sàn',
+    filterField:5,            // ô lọc đơn chọn áp lên cột SÀN (G2G / Gamsgo)
+    barSplitByBU:true,        // biểu đồ ngày xếp chồng doanh thu theo sàn
     itemLabel:'Sản phẩm',
     itemShort:'SP',
-    groupLabel:'Nhóm số lượng',
+    groupLabel:'Sàn',
     cols:{
       date  :{names:['thoi gian','ngay','ngay ban','date','time'], fallback:0},  // cột A
       item  :{names:['ten san pham','san pham','product','item'],  fallback:1},  // cột B
@@ -880,7 +909,13 @@ const SCHEMAS = {
     keep:r=>r[3]!==0||r[6]>0,
     // nhóm theo số lượng: 0 tách riêng khỏi ≥ 1
     groupOfQty:q=>q>0?GRP_QTY:GRP_ZERO,
-    statusFilter:[{v:'all',t:'Tất cả'},{v:GRP_QTY,t:GRP_QTY},{v:GRP_ZERO,t:GRP_ZERO}],
+    // Ô lọc = chọn sàn: "Tất cả 2 sàn" hoặc xem riêng từng sàn.
+    // Danh sách lấy thẳng từ SOURCES.sheets nên thêm sàn mới là tự có nút.
+    statusFilter(src){
+      const names=(src.sheets||[]).map(s=>s.name).filter(Boolean);
+      return [{v:'all',t:names.length?`Tất cả ${names.length} sàn`:'Tất cả'}]
+             .concat(names.map(n=>({v:n,t:n})));
+    },
     weekSeries:[
       {v:GRP_QTY, t:GRP_QTY,  tag:'green', color:'rgba(5,150,105,.75)', match:r=>r[4]===GRP_QTY},
       {v:GRP_ZERO,t:GRP_ZERO, tag:'yellow',color:'rgba(217,119,6,.70)', match:r=>r[4]===GRP_ZERO},
@@ -888,26 +923,39 @@ const SCHEMAS = {
     weekMeasure: rows=>rows.reduce((s,r)=>s+r[3],0),    // biểu đồ tuần cộng doanh thu
     weekUnit:   '',
     weekIsMoney:true,
-    lineLabel:  'Số lượng',
-    lineMeasure:rows=>rows.reduce((s,r)=>s+(r[6]||0),0),
-    lineUnit:   '',
+    // cột "số lượng" trong sheet là số đơn vị game-currency (1000M gems…) nên
+    // không dùng làm chỉ số; đường biểu đồ đếm số đơn cho thống nhất với KPI
+    lineLabel:  'Số đơn',
+    lineMeasure:rows=>rows.length,
+    lineUnit:   ' đơn',
     titles:{
-      combo:'Doanh Thu & Số Lượng Theo Ngày', comboHint:'Cột = Doanh thu · Đường = Số lượng',
+      combo:'Doanh Thu Theo Ngày & Sàn', comboHint:'Cột = Doanh thu theo sàn · Đường = Số đơn',
       week :'Doanh Thu Theo Tuần & Nhóm Số Lượng',
       item :'Top Sản Phẩm theo Doanh Thu',
-      bu   :'Theo Nhóm Số Lượng', buCol:'Nhóm', amountCol:'Doanh thu', countCol:'Dòng',
+      bu   :'Theo Sàn & Nhóm Số Lượng', buCol:'Sàn', amountCol:'Doanh thu', countCol:'Dòng',
     },
+    /* 4 thẻ giống trang sổ cấp hàng. Sheet không có cột trạng thái nên
+       "Tỷ lệ cancel" = tỷ lệ đơn có SL = 0 (không giao được hàng).
+       Dòng phụ của 2 thẻ đầu tách sẵn số liệu theo từng sàn. */
     kpis(f){
       const rev  = f.reduce((s,r)=>s+r[3],0);
-      const withQ= f.filter(r=>r[4]===GRP_QTY),  zeroQ=f.filter(r=>r[4]===GRP_ZERO);
-      const revQ = withQ.reduce((s,r)=>s+r[3],0), revZ=zeroQ.reduce((s,r)=>s+r[3],0);
-      const qty  = f.reduce((s,r)=>s+(r[6]||0),0);
-      const pct  = v=>rev?((v/rev)*100).toFixed(1)+'%':'0.0%';
+      const n    = f.length;
+      const avg  = n?rev/n:0;
+      const zero = f.filter(r=>r[4]===GRP_ZERO);
+      const revZ = zero.reduce((s,r)=>s+r[3],0);
+      const rate = n?((zero.length/n)*100).toFixed(1):'0.0';
+      // lấy danh sách sàn từ toàn bộ dữ liệu để khi xem riêng 1 sàn vẫn thấy đủ tên
+      const plats=S.ALL_BUS.slice();
+      const perPlat=fn=>plats.length>1 ? plats.map(p=>`${p} ${fn(f.filter(r=>r[5]===p))}`).join(' · ') : null;
+
       return [
-        {label:'Tổng doanh thu',      val:money(rev), sub:`${moneyFull(rev)} · ${f.length} dòng`},
-        {label:`Doanh thu ${GRP_QTY}`,val:money(revQ),sub:`${withQ.length} dòng · ${pct(revQ)} tổng DT`},
-        {label:`Doanh thu ${GRP_ZERO}`,val:money(revZ),sub:`${zeroQ.length} dòng · ${pct(revZ)} tổng DT`},
-        {label:'Tổng số lượng',       val:String(qty),sub:qty?`TB ${moneyFull(revQ/qty)} / sản phẩm`:'chưa có số lượng'},
+        {label:'Tổng doanh thu', val:money(rev),
+         sub: perPlat(rows=>money(rows.reduce((s,r)=>s+r[3],0))) || moneyFull(rev)},
+        {label:'Tổng đơn hàng',  val:String(n),
+         sub: perPlat(rows=>String(rows.length)) || 'đơn ghi nhận'},
+        {label:'Trung bình / đơn', val:money(avg), sub:moneyFull(avg)},
+        {label:'Tỷ lệ cancel',   val:rate+'%',
+         sub:`${zero.length} đơn SL = 0 · ${money(revZ)}`},
       ];
     },
   },
@@ -954,7 +1002,10 @@ const curSrc = () => SOURCES.find(s=>s.id===curId);
 let chartCombo=null, chartWeekly=null;
 
 const SKU_PALETTE=['#2563eb','#059669','#d97706','#dc2626','#7c3aed','#ea580c','#0891b2','#db2777','#65a30d','#0284c7'];
-const BU_COLORS={'BD10F3':'#7c3aed','BU2':'#059669','BU4':'#d97706','—':'#64748b'};
+const BU_COLORS={'BD10F3':'#7c3aed','BU2':'#059669','BU4':'#d97706','—':'#64748b',
+                 'G2G':'#2563eb','Gamsgo':'#7c3aed'};
+// màu của thẻ lọc BU / sàn
+const BU_TAGS={'BD10F3':'purple','BU2':'green','BU4':'yellow','G2G':'blue','Gamsgo':'purple'};
 
 /* ─── Helpers ─────────────────────────────────────────── */
 // ✅ FIX: hiển thị đúng đơn vị — fmt đã xử lý chuẩn cho số lớn
@@ -1037,11 +1088,56 @@ function normHeader(s){
     .replace(/đ/g,'d').replace(/\s+/g,' ');
 }
 
-/* ─── Fetch & parse ───────────────────────────────────── */
+/* ─── Parse 1 sheet ───────────────────────────────────────
+   sheetName khác rỗng (trang nhiều sheet) thì tên đó trở thành
+   SÀN của mọi dòng; ngược lại lấy theo cột BU trong sheet.    */
+function parseSheet(text, sc, sheetName){
+  const allRows=Papa.parse(text,{skipEmptyLines:false}).data;
+
+  // Tìm dòng header theo cách riêng của từng loại sheet (-1 = sheet không có header)
+  const headerIdx=sc.findHeader(allRows);
+
+  // Dò cột theo TÊN header, không thấy thì lùi về vị trí cột mặc định
+  // → thêm/chèn cột trong sheet không làm vỡ dashboard
+  const colIndex={};
+  (allRows[headerIdx]||[]).forEach((c,i)=>{ const k=normHeader(c); if(k && !(k in colIndex)) colIndex[k]=i; });
+  const iOf=key=>{
+    const def=sc.cols[key];
+    if(!def) return -1;
+    for(const name of def.names){ const k=normHeader(name); if(k in colIndex) return colIndex[k]; }
+    return def.fallback;
+  };
+  const iItem=iOf('item'), iDate=iOf('date'), iAmt=iOf('amount'),
+        iGroup=iOf('group'), iBU=iOf('bu'), iQty=iOf('qty'), iSTT=iOf('stt');
+
+  const rows=allRows.slice(headerIdx+1).filter(r=>r.some(c=>c?.toString().trim()));
+  if(!rows.length) throw new Error('sheet trống hoặc header không đúng');
+
+  const cell=(c,i)=> i>=0 ? (c[i]==null?'':c[i].toString().trim()) : '';
+  const parsed=rows.map(c=>{
+    const item = cell(c,iItem);
+    const date = normalizeDate(cell(c,iDate));
+    if(!date||!item) return null;
+    const amount = (sc.currency==='USD' ? parseAmount(cell(c,iAmt)) : parseNum(cell(c,iAmt))) * sc.amountScale;
+    const qty    = iQty>=0 ? parseQty(cell(c,iQty)) : 0;
+    const group  = sc.groupOf ? sc.groupOf(cell(c,iGroup)) : sc.groupOfQty(qty);
+    const bu     = sheetName || cell(c,iBU) || '—';
+    return [cell(c,iSTT), item, date, amount, group, bu, qty];
+  }).filter(Boolean).filter(r=>sc.keep?sc.keep(r):true);
+
+  if(!parsed.length) throw new Error(
+    `không đọc được dòng nào (cột dò được: ${sc.itemLabel}=${iItem}, Ngày=${iDate}, Tiền=${iAmt}`
+    + (iQty>=0?`, SL=${iQty}`:'') + `)`);
+  return parsed;
+}
+
+/* ─── Fetch & parse ───────────────────────────────────────
+   Một trang có thể gộp nhiều sheet (mỗi sheet = 1 sàn). Sheet
+   nào lỗi thì bỏ qua sheet đó và báo banner, miễn còn sheet chạy. */
 async function loadData(force=false){
   const src=curSrc();
-  const url=csvUrlOf(src);
-  if(!url){ showSetup(src); return; }
+  const sheets=sheetsOf(src);
+  if(!sheets.length){ showSetup(src); return; }
 
   const st=S, myId=curId;              // chốt trang đang tải, tránh lẫn dữ liệu khi đổi trang giữa chừng
   const now=Date.now();
@@ -1049,51 +1145,23 @@ async function loadData(force=false){
   setBtnLoading(true);
   if(st.RAW.length===0) show('loading');
   hideBanner();
+  const sc=SCHEMAS[src.schema||'ritokey'];
   try{
-    const res=await fetch(url+'&t='+now,{cache:'no-store'});
-    if(!res.ok) throw new Error(`HTTP ${res.status} — kiểm tra quyền sheet`);
-    const text=await res.text();
-    const result=Papa.parse(text,{skipEmptyLines:false});
-    const allRows=result.data;
+    const results=await Promise.all(sheets.map(async sh=>{
+      try{
+        const sep=sh.csv.includes('?')?'&':'?';
+        const res=await fetch(sh.csv+sep+'t='+now,{cache:'no-store'});
+        if(!res.ok) throw new Error(`HTTP ${res.status}`);
+        return {name:sh.name, rows:parseSheet(await res.text(), sc, sh.name)};
+      }catch(e){ return {name:sh.name, err:e.message}; }
+    }));
 
-    const sc=SCHEMAS[src.schema||'ritokey'];
+    const ok =results.filter(r=>!r.err);
+    const bad=results.filter(r=>r.err);
+    if(!ok.length) throw new Error(
+      bad.map(b=>`${b.name||'Sheet'}: ${b.err}`).join(' · ') + ' — kiểm tra quyền chia sẻ và gid của sheet');
 
-    // Tìm dòng header theo cách riêng của từng loại sheet (-1 = sheet không có header)
-    const headerIdx=sc.findHeader(allRows);
-
-    // Dò cột theo TÊN header, không thấy thì lùi về vị trí cột mặc định
-    // → thêm/chèn cột trong sheet không làm vỡ dashboard
-    const colIndex={};
-    (allRows[headerIdx]||[]).forEach((c,i)=>{ const k=normHeader(c); if(k && !(k in colIndex)) colIndex[k]=i; });
-    const iOf=key=>{
-      const def=sc.cols[key];
-      if(!def) return -1;
-      for(const name of def.names){ const k=normHeader(name); if(k in colIndex) return colIndex[k]; }
-      return def.fallback;
-    };
-    const iItem=iOf('item'), iDate=iOf('date'), iAmt=iOf('amount'),
-          iGroup=iOf('group'), iBU=iOf('bu'), iQty=iOf('qty'), iSTT=iOf('stt');
-
-    const rows=allRows.slice(headerIdx+1).filter(r=>r.some(c=>c?.toString().trim()));
-    if(!rows.length) throw new Error('Sheet trống hoặc header không đúng');
-
-    const cell=(c,i)=> i>=0 ? (c[i]==null?'':c[i].toString().trim()) : '';
-    const parsed=rows.map(c=>{
-      const item = cell(c,iItem);
-      const date = normalizeDate(cell(c,iDate));
-      if(!date||!item) return null;
-      const amount = (sc.currency==='USD' ? parseAmount(cell(c,iAmt)) : parseNum(cell(c,iAmt))) * sc.amountScale;
-      const qty    = iQty>=0 ? parseQty(cell(c,iQty)) : 0;
-      const group  = sc.groupOf ? sc.groupOf(cell(c,iGroup)) : sc.groupOfQty(qty);
-      const bu     = cell(c,iBU) || '—';
-      return [cell(c,iSTT), item, date, amount, group, bu, qty];
-    }).filter(Boolean).filter(r=>sc.keep?sc.keep(r):true);
-
-    if(!parsed.length) throw new Error(
-      `Không parse được dòng nào — cột dò được: ${sc.itemLabel}=${iItem}, Ngày=${iDate}, Tiền=${iAmt}`
-      + (iQty>=0?`, SL=${iQty}`:'') + (iGroup>=0?`, Nhóm=${iGroup}`:'') + `. Kiểm tra header sheet.`);
-
-    st.RAW=parsed;
+    st.RAW=ok.flatMap(r=>r.rows);
     st.cachedAt=Date.now();
     if(curId!==myId) return;           // đã chuyển sang trang khác → chỉ lưu, không vẽ
     deriveConstants();
@@ -1101,6 +1169,7 @@ async function loadData(force=false){
     syncFilterUI();
     show('dashboard');
     render();
+    if(bad.length) showBanner('Không tải được '+bad.map(b=>`${b.name||'sheet'} (${b.err})`).join(', '));
   }catch(e){
     if(curId!==myId) return;
     if(st.RAW.length>0){ showBanner(e.message); render(); }
@@ -1121,20 +1190,48 @@ function deriveConstants(){
 }
 
 /* ─── Filter init ─────────────────────────────────────── */
+// Tên SKU/sản phẩm lấy từ sheet là dữ liệu tuỳ ý → phải escape trước khi ghép vào HTML
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
 function initFilters(){
   const fb=document.getElementById('f-bus');
   fb.innerHTML=S.ALL_BUS.map(b=>{
-    const color=b==='BD10F3'?'purple':b==='BU2'?'green':b==='BU4'?'yellow':'blue';
-    return `<span class="tag ${S.selBUs.has(b)?'active-'+color:''}" data-v="${b}" data-color="${color}" onclick="toggleBU(this)">${b}</span>`;
+    const color=BU_TAGS[b]||'blue';
+    return `<span class="tag ${S.selBUs.has(b)?'active-'+color:''}" data-v="${esc(b)}" data-color="${color}" onclick="toggleBU(this)">${esc(b)}</span>`;
   }).join('');
   const sl=document.getElementById('sku-list');
   sl.innerHTML=S.ALL_SKUS.map(s=>`
-    <label class="sku-item ${S.selSKUs.has(s)?'checked':''}" data-v="${s}">
-      <input type="checkbox" ${S.selSKUs.has(s)?'checked':''} onchange="toggleSKU('${s}',this)"/>
-      ${s.replace(/_$/,'')}
-    </label>`).join('');
+    <label class="sku-item ${S.selSKUs.has(s)?'checked':''}" data-v="${esc(s)}" title="${esc(s)}">
+      <input type="checkbox" ${S.selSKUs.has(s)?'checked':''}/>
+      ${esc(s.replace(/_$/,''))}
+    </label>`).join('')
+    + `<div class="sku-empty" id="sku-empty" style="display:none">Không có kết quả nào khớp</div>`;
+  const box=document.getElementById('sku-search');
+  if(box) box.value='';
+  filterSKUList();
   updateSKULabel();
 }
+
+/* Ô tìm nhanh: chỉ ẩn/hiện các mục sẵn có, không dựng lại danh sách
+   → giữ nguyên con trỏ trong ô nhập và trạng thái tick của từng mục */
+function filterSKUList(){
+  const box=document.getElementById('sku-search');
+  const q=normHeader(box?box.value:'');
+  let n=0;
+  document.querySelectorAll('#sku-list .sku-item').forEach(el=>{
+    const hit=!q||normHeader(el.dataset.v).includes(q);
+    el.style.display=hit?'':'none';
+    if(hit) n++;
+  });
+  const empty=document.getElementById('sku-empty');
+  if(empty) empty.style.display=(q&&n===0)?'':'none';
+  const found=document.getElementById('sku-found');
+  if(found) found.textContent=q?`${n} kết quả`:'';
+}
+// Các mục đang hiển thị (sau khi lọc) — "Chọn tất cả"/"Bỏ chọn" chỉ tác động lên nhóm này
+const visibleSKUItems=()=>
+  [...document.querySelectorAll('#sku-list .sku-item')].filter(el=>el.style.display!=='none');
 
 /* ─── Filter actions ──────────────────────────────────── */
 function toggleBU(el){
@@ -1145,7 +1242,8 @@ function toggleBU(el){
 }
 function paintStatusTags(){
   document.querySelectorAll('#f-status .tag').forEach(t=>{
-    t.className='tag'+(t.dataset.v===S.selStatus?' active-blue':'');
+    const color=BU_TAGS[t.dataset.v]||'blue';   // thẻ sàn lấy màu của sàn, còn lại xanh
+    t.className='tag'+(t.dataset.v===S.selStatus?` active-${color}`:'');
   });
 }
 function paintWeekTags(){
@@ -1165,14 +1263,27 @@ function setWeekStatus(el){
   paintWeekTags();
   renderWeeklyChart();
 }
-function toggleSKU(sku,cb){
-  cb.checked?S.selSKUs.add(sku):S.selSKUs.delete(sku);
-  const lbl=cb.closest('.sku-item');
-  if(lbl) lbl.className='sku-item'+(cb.checked?' checked':'');
+// Uỷ quyền sự kiện: tên sản phẩm không còn bị nhét vào onclick nên dấu nháy/ký tự lạ không làm gãy
+document.addEventListener('change',e=>{
+  const cb=e.target;
+  if(!(cb instanceof HTMLInputElement)||cb.type!=='checkbox') return;
+  const lbl=cb.closest('#sku-list .sku-item');
+  if(!lbl) return;
+  cb.checked?S.selSKUs.add(lbl.dataset.v):S.selSKUs.delete(lbl.dataset.v);
+  lbl.className='sku-item'+(cb.checked?' checked':'');
+  updateSKULabel(); render();
+});
+
+function setSKUs(items,on){
+  items.forEach(el=>{
+    on?S.selSKUs.add(el.dataset.v):S.selSKUs.delete(el.dataset.v);
+    el.className='sku-item'+(on?' checked':'');
+    const cb=el.querySelector('input'); if(cb) cb.checked=on;
+  });
   updateSKULabel(); render();
 }
-function skuAll(){ S.selSKUs=new Set(S.ALL_SKUS); initFilters(); render(); }
-function skuNone(){ S.selSKUs=new Set(); initFilters(); render(); }
+function skuAll(){  setSKUs(visibleSKUItems(),true);  }
+function skuNone(){ setSKUs(visibleSKUItems(),false); }
 function updateSKULabel(){
   document.getElementById('sku-count-label').textContent=
     `${S.selSKUs.size}/${S.ALL_SKUS.length} ${curSchema().itemShort}`;
@@ -1198,12 +1309,13 @@ function dateStrToObj(dateStr){
   return new Date(2026,m-1,d);
 }
 function getFiltered(){
-  return S.RAW.filter(([,sku,date,,status,bu])=>{
-    if(!S.selSKUs.has(sku)) return false;
-    if(!S.selBUs.has(bu||'—')) return false;
-    if(S.selStatus!=='all' && status!==S.selStatus) return false;
+  const gi=curSchema().filterField;      // 4 = trạng thái, 5 = sàn
+  return S.RAW.filter(r=>{
+    if(!S.selSKUs.has(r[1])) return false;
+    if(!S.selBUs.has(r[5]||'—')) return false;
+    if(S.selStatus!=='all' && r[gi]!==S.selStatus) return false;
     if(S.drStart||S.drEnd){
-      const dt=dateStrToObj(date);
+      const dt=dateStrToObj(r[2]);
       if(S.drStart && dt<S.drStart) return false;
       if(S.drEnd   && dt>S.drEnd)   return false;
     }
@@ -1256,15 +1368,31 @@ const CHART_DEFAULTS={
 function renderComboChart(f){
   const sc=curSchema();
   const dates=S.ALL_DATES.filter(d=>f.some(r=>r[2]===d));
-  const revData=dates.map(d=>f.filter(r=>r[2]===d).reduce((s,r)=>s+r[3],0));
-  const ordData=dates.map(d=>sc.lineMeasure(f.filter(r=>r[2]===d)));
+
+  // gom theo ngày một lượt thay vì quét lại mảng cho từng ngày
+  const byDate={}; dates.forEach(d=>byDate[d]=[]);
+  f.forEach(r=>{ if(byDate[r[2]]) byDate[r[2]].push(r); });
+  const sum=rows=>rows.reduce((s,r)=>s+r[3],0);
+  const ordData=dates.map(d=>sc.lineMeasure(byDate[d]));
+
+  // Trang nhiều sàn → cột xếp chồng theo sàn; trang một nguồn → một cột duy nhất
+  const stacked=!!sc.barSplitByBU;
+  const plats=stacked?S.ALL_BUS.filter(b=>f.some(r=>r[5]===b)):[];
+  const barSets=stacked
+    ? plats.map((p,i)=>({
+        type:'bar',label:p,stack:'m',yAxisID:'y',
+        data:dates.map(d=>sum(byDate[d].filter(r=>r[5]===p))),
+        backgroundColor:(BU_COLORS[p]||'#64748b')+'B3',
+        borderRadius:i===plats.length-1?{topLeft:5,topRight:5}:0,
+      }))
+    : [{type:'bar',label:sc.titles.amountCol,data:dates.map(d=>sum(byDate[d])),
+        backgroundColor:'rgba(5,150,105,.65)',borderRadius:5,yAxisID:'y'}];
 
   if(chartCombo) chartCombo.destroy();
   const ctx=document.getElementById('chart-combo').getContext('2d');
   chartCombo=new Chart(ctx,{
     data:{labels:dates,datasets:[
-      {type:'bar',label:sc.titles.amountCol,data:revData,
-       backgroundColor:'rgba(5,150,105,.65)',borderRadius:5,yAxisID:'y'},
+      ...barSets,
       {type:'line',label:sc.lineLabel,data:ordData,
        borderColor:'#d97706',backgroundColor:'transparent',borderWidth:2.5,
        pointBackgroundColor:'#d97706',pointRadius:4,tension:.3,yAxisID:'y2'},
@@ -1304,8 +1432,12 @@ function renderWeeklyChart(){
   // Lọc chung (SKU/BU/khoảng ngày) rồi gom theo tuần — mỗi dòng chỉ tính week label 1 lần
   const byWeek={};
   weeks.forEach(w=>byWeek[w]=[]);
+  // Ô lọc đơn chọn áp lên SÀN thì phải áp cả ở đây (trực giao với các cột xếp chồng);
+  // còn khi nó áp lên trạng thái thì bỏ qua, vì biểu đồ này vốn đã tách theo trạng thái.
+  const applySel = curSchema().filterField===5 && S.selStatus!=='all';
   S.RAW.forEach(r=>{
     if(!S.selSKUs.has(r[1])||!S.selBUs.has(r[5]||'—')) return;
+    if(applySel && r[5]!==S.selStatus) return;
     if(S.drStart||S.drEnd){const dt=dateStrToObj(r[2]);if(S.drStart&&dt<S.drStart)return;if(S.drEnd&&dt>S.drEnd)return;}
     const w=getWeekLabel(r[2]);
     if(byWeek[w]) byWeek[w].push(r);
@@ -1358,7 +1490,7 @@ function renderSKUBars(f){
     const c=SKU_PALETTE[i%SKU_PALETTE.length];
     const pct=Math.max((item.rev/maxR)*100,5);
     return `<div class="sku-row">
-      <div class="sku-name" title="${item.sku}">${item.sku.replace(/_$/,'')}</div>
+      <div class="sku-name" title="${esc(item.sku)}">${esc(item.sku.replace(/_$/,''))}</div>
       <div class="sku-bar-bg">
         <div class="sku-bar" style="width:${pct}%;background:linear-gradient(90deg,${c}22,${c}60);border-left:3px solid ${c}">
           <span style="color:${c}">${money(item.rev)}</span>
@@ -1372,36 +1504,34 @@ function renderSKUBars(f){
 /* ─── BU rows ─────────────────────────────────────────── */
 function renderBURows(f){
   const sc=curSchema();
-  // Sheet có cột BU → gom theo BU; sheet không có → gom theo nhóm (SL ≥ 1 / SL = 0)
-  const keyIdx=sc.showBU?5:4;
+  // Tầng trên: theo BU (sổ cấp hàng) hoặc theo SÀN (doanh thu) — cùng nằm ở cột 5
   const m={};
-  f.forEach(r=>{ const k=r[keyIdx]||'—'; if(!m[k])m[k]={bu:k,rev:0,n:0}; m[k].rev+=r[3]; m[k].n++; });
+  f.forEach(r=>{ const k=r[5]||'—'; if(!m[k])m[k]={bu:k,rev:0,n:0}; m[k].rev+=r[3]; m[k].n++; });
   const sorted=Object.values(m).sort((a,b)=>b.rev-a.rev);
-  const groupColor=g=>sc.weekSeries.find(s=>s.v===g)?.color||'#64748b';
 
   document.getElementById('bu-rows').innerHTML=sorted.map(item=>{
-    const c=sc.showBU?(BU_COLORS[item.bu]||'#64748b'):groupColor(item.bu);
+    const c=BU_COLORS[item.bu]||'#64748b';
     return `<div class="bu-row">
-      <div class="bu-left"><div class="bu-dot" style="background:${c}"></div><div class="bu-name">${item.bu}</div></div>
+      <div class="bu-left"><div class="bu-dot" style="background:${c}"></div><div class="bu-name">${esc(item.bu)}</div></div>
       <div class="bu-nums"><span class="bu-rev">${money(item.rev)}</span><span class="bu-ord">${item.n}</span></div>
     </div>`;
   }).join('');
 
-  // Dòng tổng kết theo trạng thái chỉ có ý nghĩa với sheet có cột trạng thái
-  const box=document.getElementById('status-rows');
-  if(!sc.showBU){ box.style.display='none'; box.innerHTML=''; return; }
-  box.style.display='';
-  box.innerHTML=[{l:'Done',c:'var(--green)'},{l:'Cancel',c:'var(--red)'}].map(({l,c})=>{
-    const rows=f.filter(r=>r[4]===l);
-    const rev=rows.reduce((s,r)=>s+r[3],0);
-    return `<div class="bu-row" style="background:${l==='Done'?'var(--green-l)':'var(--red-l)'};border-color:${l==='Done'?'var(--green)33':'var(--red)33'}">
-      <div class="bu-left"><div class="bu-dot" style="background:${c}"></div><div class="bu-name">${l}</div></div>
-      <div class="bu-nums">
-        <span style="font-family:var(--mono);font-size:11px;color:${c};font-weight:600">${money(rev)}</span>
-        <span class="bu-ord">${rows.length}</span>
-      </div>
-    </div>`;
-  }).join('');
+  // Tầng dưới: Done/Cancel (sổ cấp hàng) hoặc SL ≥ 1 / SL = 0 (doanh thu)
+  document.getElementById('status-rows').innerHTML=sc.weekSeries
+    .filter(s=>s.v!=='Other')
+    .map(s=>{
+      const rows=f.filter(s.match);
+      const rev=rows.reduce((a,r)=>a+r[3],0);
+      const c=`var(--${s.tag})`, bg=`var(--${s.tag}-l)`;
+      return `<div class="bu-row" style="background:${bg};border-color:${c}">
+        <div class="bu-left"><div class="bu-dot" style="background:${c}"></div><div class="bu-name">${s.t}</div></div>
+        <div class="bu-nums">
+          <span style="font-family:var(--mono);font-size:11px;color:${c};font-weight:600">${money(rev)}</span>
+          <span class="bu-ord">${rows.length}</span>
+        </div>
+      </div>`;
+    }).join('');
 }
 
 /* ─── UI helpers ──────────────────────────────────────── */
@@ -1675,7 +1805,7 @@ document.addEventListener('keydown', e=>{
 /* ─── Sidebar: chuyển trang ───────────────────────────── */
 function renderNav(){
   document.getElementById('side-nav').innerHTML=SOURCES.map(s=>{
-    const unset=!csvUrlOf(s);
+    const unset=!sheetsOf(s).length;
     const cls='nav-item'+(s.id===curId?' active':'')+(unset?' unset':'');
     return `<button class="${cls}" onclick="switchPage('${s.id}')">
       <span class="nav-dot"></span>
@@ -1698,6 +1828,7 @@ function syncFilterUI(){
   // Nhãn đổi theo loại sheet
   put('lbl-status',     sc.groupLabel);
   put('lbl-item',       sc.itemLabel);
+  put('lbl-bu',         sc.buLabel);
   put('h-unit',         sc.showBU?'đơn':'dòng');
   put('sec-combo',      sc.titles.combo);
   put('sec-combo-hint', sc.titles.comboHint);
@@ -1710,7 +1841,7 @@ function syncFilterUI(){
   document.getElementById('fg-bu').style.display=sc.showBU?'':'none';
 
   // Nút lọc nhóm: Trạng thái (Done/Cancel) hoặc Nhóm số lượng (SL ≥ 1 / SL = 0)
-  document.getElementById('f-status').innerHTML=sc.statusFilter
+  document.getElementById('f-status').innerHTML=sc.statusFilter(src)
     .map(o=>`<span class="tag" data-v="${o.v}" onclick="setStatus(this)">${o.t}</span>`).join('');
   document.getElementById('f-week-status').innerHTML=
     [`<span class="tag" data-v="all" onclick="setWeekStatus(this)">Tất cả</span>`]
@@ -1731,7 +1862,7 @@ function switchPage(id){
   renderNav();
   syncFilterUI();
   const src=curSrc();
-  if(!csvUrlOf(src)){ showSetup(src); return; }
+  if(!sheetsOf(src).length){ showSetup(src); return; }
   if(S.RAW.length){ initFilters(); show('dashboard'); render(); }  // đã tải rồi → hiện lại ngay
   else loadData();
 }
