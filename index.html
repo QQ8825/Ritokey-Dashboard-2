@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Ritokey · HQS10000 Dashboard</title>
+<title>Ritokey · Doanh thu HQC300</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet"/>
@@ -506,7 +506,7 @@ footer{
       <div class="pin-logo-dot">RK</div>
       <div>
         <div class="pin-logo-text">RITOKEY</div>
-        <div class="pin-logo-sub">HQS10000 · Sổ cấp hàng</div>
+        <div class="pin-logo-sub">HQC300 · Doanh thu</div>
       </div>
     </div>
 
@@ -549,8 +549,8 @@ footer{
 
 <div class="shell">
 
-<!-- ══ SIDEBAR — chọn trang ══════════════════════════════ -->
-<aside class="sidebar">
+<!-- ══ SIDEBAR — chọn trang (tự ẩn khi chỉ có 1 trang) ══ -->
+<aside class="sidebar" id="sidebar">
   <div class="side-brand">
     <div class="logo-dot">RK</div>
     <div>
@@ -570,9 +570,10 @@ footer{
   <!-- Header -->
   <header>
     <div class="logo">
+      <div class="logo-dot" id="header-logo" style="display:none">RK</div>
       <div>
-        <div class="logo-title" id="page-title">RITOKEY · HQS10000</div>
-        <div class="logo-sub"><span id="src-name">Sổ cấp hàng</span> · <span id="last-updated">—</span></div>
+        <div class="logo-title" id="page-title">DOANH THU HQC300</div>
+        <div class="logo-sub"><span id="src-name">Doanh thu · USD</span> · <span id="last-updated">—</span></div>
       </div>
     </div>
     <div class="header-right">
@@ -782,19 +783,11 @@ footer{
 ═══════════════════════════════════════════════════════ */
 const SOURCES = [
   {
-    id:    's1',
-    nav:   'Ritokey · HQS10000',      // tên hiện ở menu bên trái
-    title: 'RITOKEY · HQS10000',      // tiêu đề trên đầu trang
-    sub:   'Sổ cấp hàng',
-    schema:'ritokey',                 // cách đọc sheet — xem SCHEMAS bên dưới
-    url:   'https://docs.google.com/spreadsheets/d/1ri89f9lm0z43dQHTNMLxs2OSubGtfMeZ-zIREnXRC50/edit#gid=2137132884',
-  },
-  {
     id:    's2',
-    nav:   'Doanh thu HQC300',
-    title: 'DOANH THU HQC300',
+    nav:   'Doanh thu HQC300',        // tên hiện ở menu bên trái
+    title: 'DOANH THU HQC300',        // tiêu đề trên đầu trang
     sub:   'Doanh thu · USD',
-    schema:'revenue',
+    schema:'revenue',                 // cách đọc sheet — xem SCHEMAS bên dưới
     // Nhiều sheet gộp chung 1 trang; `name` trở thành tên SÀN của mọi dòng trong sheet đó.
     // Đổi sàn / thêm sàn: sửa danh sách này, phần còn lại tự chạy theo.
     sheets:[
@@ -818,67 +811,6 @@ const CACHE_MS = 5 * 60 * 1000;
 const GRP_QTY='SL ≥ 1', GRP_ZERO='SL = 0';
 
 const SCHEMAS = {
-  /* Sổ cấp hàng: SKU · ngày cấp · giá vốn (nghìn đ) · trạng thái · BU */
-  ritokey:{
-    currency:'VND',
-    showBU:true,              // hiện bộ lọc BU đa chọn
-    buLabel:'Business Unit',
-    filterField:4,            // ô lọc đơn chọn áp lên cột trạng thái
-    itemLabel:'SKU',
-    itemShort:'SKU',
-    groupLabel:'Trạng thái',
-    // cột dò theo tên header, kèm vị trí dự phòng nếu không thấy tên
-    cols:{
-      item  :{names:['sku','ma sku'],                          fallback:1},
-      date  :{names:['ngay cap','date'],                       fallback:3},
-      amount:{names:['gia von','cost'],                        fallback:5},
-      group :{names:['trang thai','status','tinh trang','tt'], fallback:7},
-      bu    :{names:['team','bu','team (bu)'],                 fallback:8},
-      stt   :{names:['stt'],                                   fallback:0},
-    },
-    amountScale:1000,                                  // giá vốn ghi theo đơn vị nghìn
-    // dòng header = dòng chứa ô "STT" (hoặc "SKU") ở bất kỳ cột nào
-    findHeader(rows){
-      let i=rows.findIndex(r=>r.some(c=>normHeader(c)==='stt'));
-      if(i===-1) i=rows.findIndex(r=>r.some(c=>normHeader(c)==='sku'));
-      return i===-1?6:i;
-    },
-    // chuẩn hoá giá trị cột trạng thái
-    groupOf(rawStatus){
-      const sl=(rawStatus||'').toLowerCase();
-      if(/^done$|hoàn t|hoan t/.test(sl)) return 'Done';
-      if(/cancel|huỷ|hủy/.test(sl))       return 'Cancel';
-      return rawStatus || '—';
-    },
-    statusFilter:()=>[{v:'all',t:'Tất cả'},{v:'Done',t:'Done'},{v:'Cancel',t:'Cancel'}],
-    weekSeries:[
-      {v:'Done',  t:'Done',   tag:'green', color:'rgba(5,150,105,.75)',  match:r=>r[4]==='Done'},
-      {v:'Cancel',t:'Cancel', tag:'red',   color:'rgba(220,38,38,.75)',  match:r=>r[4]==='Cancel'},
-      {v:'Other', t:'Khác',   tag:'yellow',color:'rgba(217,119,6,.65)',  match:r=>r[4]!=='Done'&&r[4]!=='Cancel'},
-    ],
-    weekMeasure: rows=>rows.length,                    // biểu đồ tuần đếm số đơn
-    weekUnit:   ' đơn',
-    lineLabel:  'Số đơn',
-    lineMeasure:rows=>rows.length,
-    lineUnit:   ' đơn',
-    titles:{
-      combo:'Giá Vốn & Số Đơn Theo Ngày', comboHint:'Cột = Giá vốn · Đường = Số đơn',
-      week :'Trạng Thái Đơn Hàng Theo Tuần',
-      item :'Top SKU theo Giá Vốn',
-      bu   :'Theo BU & Trạng thái', buCol:'BU', amountCol:'Giá vốn', countCol:'Đơn',
-    },
-    kpis(f){
-      const n=f.length, rev=f.reduce((s,r)=>s+r[3],0);
-      const avg=n?Math.round(rev/n):0;
-      const cx=f.filter(r=>r[4]==='Cancel').length;
-      return [
-        {label:'Tổng đơn hàng', val:String(n),                   sub:'đơn được cấp'},
-        {label:'Tổng giá vốn',  val:money(rev),                  sub:moneyFull(rev)},
-        {label:'Trung bình / đơn', val:money(avg),               sub:moneyFull(avg)},
-        {label:'Tỷ lệ Cancel',  val:(n?((cx/n)*100).toFixed(1):'0.0')+'%', sub:cx+' đơn bị huỷ'},
-      ];
-    },
-  },
 
   /* Doanh thu HQC300: A=thời gian · B=sản phẩm · C=số lượng · D=doanh thu (USD).
      Dòng số lượng = 0 vẫn tính doanh thu, nhưng tách riêng khỏi dòng có SL ≥ 1. */
@@ -960,7 +892,9 @@ const SCHEMAS = {
     },
   },
 };
-const curSchema = () => SCHEMAS[curSrc().schema || 'ritokey'];
+const DEFAULT_SCHEMA = Object.keys(SCHEMAS)[0];
+const schemaOf  = src => SCHEMAS[src.schema] || SCHEMAS[DEFAULT_SCHEMA];
+const curSchema = () => schemaOf(curSrc());
 
 /* Tách link sheet thành URL CSV. Nhận cả 2 dạng:
    - Link sheet thường:  .../spreadsheets/d/<ID>/edit#gid=<GID>
@@ -1002,10 +936,9 @@ const curSrc = () => SOURCES.find(s=>s.id===curId);
 let chartCombo=null, chartWeekly=null;
 
 const SKU_PALETTE=['#2563eb','#059669','#d97706','#dc2626','#7c3aed','#ea580c','#0891b2','#db2777','#65a30d','#0284c7'];
-const BU_COLORS={'BD10F3':'#7c3aed','BU2':'#059669','BU4':'#d97706','—':'#64748b',
-                 'G2G':'#2563eb','Gamsgo':'#7c3aed'};
-// màu của thẻ lọc BU / sàn
-const BU_TAGS={'BD10F3':'purple','BU2':'green','BU4':'yellow','G2G':'blue','Gamsgo':'purple'};
+// màu của từng sàn (dùng cho chấm, cột biểu đồ và thẻ lọc)
+const BU_COLORS={'G2G':'#2563eb','Gamsgo':'#7c3aed','—':'#64748b'};
+const BU_TAGS  ={'G2G':'blue',   'Gamsgo':'purple'};
 
 /* ─── Helpers ─────────────────────────────────────────── */
 // ✅ FIX: hiển thị đúng đơn vị — fmt đã xử lý chuẩn cho số lớn
@@ -1145,7 +1078,7 @@ async function loadData(force=false){
   setBtnLoading(true);
   if(st.RAW.length===0) show('loading');
   hideBanner();
-  const sc=SCHEMAS[src.schema||'ritokey'];
+  const sc=schemaOf(src);
   try{
     const results=await Promise.all(sheets.map(async sh=>{
       try{
@@ -1802,8 +1735,14 @@ document.addEventListener('keydown', e=>{
   if(el) el.addEventListener('input', clearError);
 });
 
-/* ─── Sidebar: chuyển trang ───────────────────────────── */
+/* ─── Sidebar: chuyển trang ─────────────────────────────
+   Chỉ có 1 trang thì không cần menu chọn trang → ẩn sidebar,
+   logo quay về header. Thêm trang thứ 2 là sidebar tự hiện lại. */
 function renderNav(){
+  const multi=SOURCES.length>1;
+  document.getElementById('sidebar').style.display   = multi?'':'none';
+  document.getElementById('header-logo').style.display = multi?'none':'flex';
+  if(!multi) return;
   document.getElementById('side-nav').innerHTML=SOURCES.map(s=>{
     const unset=!sheetsOf(s).length;
     const cls='nav-item'+(s.id===curId?' active':'')+(unset?' unset':'');
