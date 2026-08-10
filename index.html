@@ -1015,6 +1015,37 @@ function parseQty(s){
   return Number.isFinite(n) ? n : 0;
 }
 
+/* Dò dấu thập phân của CẢ CỘT thay vì đoán từng ô.
+   Đoán từng ô luôn bế tắc với "1,500" (1,5 hay 1500?), nhưng nhìn cả cột
+   thì chỉ cần một ô kiểu "17,55" là biết chắc dấu phẩy đang là thập phân. */
+function detectDecimalSep(values){
+  let comma=0, dot=0;
+  for(const v of values){
+    const t=String(v??'').replace(/[^\d.,]/g,'');
+    const lc=t.lastIndexOf(','), ld=t.lastIndexOf('.');
+    if(lc<0 && ld<0) continue;
+    const isComma=lc>ld;
+    if(t.includes(',') && t.includes('.')){
+      isComma?comma+=2:dot+=2;            // có cả hai ⇒ dấu đứng sau cùng chắc chắn là thập phân
+    }else if(t.length-1-(isComma?lc:ld)!==3){
+      isComma?comma++:dot++;              // 1, 2 hoặc ≥4 chữ số phía sau ⇒ không thể là phân cách nghìn
+    }
+  }
+  return comma>dot?',':dot>comma?'.':null;   // null = cột toàn số nguyên, không có bằng chứng
+}
+
+/* Đọc số khi đã biết chắc dấu thập phân — không còn phải đoán */
+function parseAmountWith(s, dec){
+  let t=String(s??'').trim().replace(/[^\d.,-]/g,'');
+  if(!t) return 0;
+  const neg=t.startsWith('-');
+  t=t.replace(/-/g,'').split(dec===','?'.':',').join('');   // bỏ dấu phân cách nghìn
+  const i=t.lastIndexOf(dec);
+  if(i>-1) t=t.slice(0,i).split(dec).join('')+'.'+t.slice(i+1);
+  const n=Number(t);
+  return Number.isFinite(n) ? (neg?-n:n) : 0;
+}
+
 // Chuẩn hoá tên cột (bỏ dấu tiếng Việt, lowercase) để dò header linh hoạt
 function normHeader(s){
   return (s||'').toString().toLowerCase().trim()
@@ -1048,18 +1079,22 @@ function parseSheet(text, sc, sheetName){
   if(!rows.length) throw new Error('sheet trống hoặc header không đúng');
 
   const cell=(c,i)=> i>=0 ? (c[i]==null?'':c[i].toString().trim()) : '';
+  // Dấu thập phân dò một lần trên cả cột tiền, rồi áp cho mọi dòng
+  const dec=detectDecimalSep(rows.map(c=>cell(c,iAmt)));
+  const toAmount = dec ? (v=>parseAmountWith(v,dec)) : parseAmount;
+
   // Đếm rõ từng loại dòng bị loại để tổng không bao giờ hụt một cách âm thầm
   let noDate=0, noItem=0, lostMoney=0;
   const parsed=rows.map(c=>{
     const item = cell(c,iItem);
     const date = normalizeDate(cell(c,iDate));
     if(!date||!item){
-      const amt=sc.currency==='USD'?parseAmount(cell(c,iAmt)):parseNum(cell(c,iAmt));
+      const amt=toAmount(cell(c,iAmt));
       if(amt) lostMoney+=amt*sc.amountScale;   // dòng có tiền mà bị loại → phải báo
       if(!date) noDate++; else noItem++;
       return null;
     }
-    const amount = (sc.currency==='USD' ? parseAmount(cell(c,iAmt)) : parseNum(cell(c,iAmt))) * sc.amountScale;
+    const amount = toAmount(cell(c,iAmt)) * sc.amountScale;
     const qty    = iQty>=0 ? parseQty(cell(c,iQty)) : 0;
     const group  = sc.groupOf ? sc.groupOf(cell(c,iGroup)) : sc.groupOfQty(qty);
     const bu     = sheetName || cell(c,iBU) || '—';
@@ -1072,7 +1107,7 @@ function parseSheet(text, sc, sheetName){
   if(!kept.length) throw new Error(
     `không đọc được dòng nào (cột dò được: ${sc.itemLabel}=${iItem}, Ngày=${iDate}, Tiền=${iAmt}`
     + (iQty>=0?`, SL=${iQty}`:'') + `)`);
-  return {rows:kept, noDate, noItem, empty, lostMoney, total:rows.length};
+  return {rows:kept, noDate, noItem, empty, lostMoney, dec, total:rows.length};
 }
 
 // Chữ ký nội dung để phát hiện 2 sheet trả về cùng một dữ liệu (gid sai / publish thiếu sheet)
@@ -1128,6 +1163,7 @@ async function loadData(force=false){
       empty:    uniq.reduce((s,r)=>s+r.empty,0),
       lostMoney:uniq.reduce((s,r)=>s+r.lostMoney,0),
     };
+    st.decSep=[...new Set(uniq.map(r=>r.dec).filter(Boolean))].join('/')||'?';
     st.cachedAt=Date.now();
     if(curId!==myId) return;           // đã chuyển sang trang khác → chỉ lưu, không vẽ
     deriveConstants();
@@ -1339,6 +1375,7 @@ function render(){
   const parts=[`${S.RAW.length} dòng đọc được`];
   if(S.selSKUs.size<S.ALL_SKUS.length)
     parts.push(`⚠ đang lọc ${S.selSKUs.size}/${S.ALL_SKUS.length} ${curSchema().itemShort}`);
+  if(S.decSep)   parts.push(`dấu thập phân "${S.decSep}"`);
   if(sk.noDate)  parts.push(`${sk.noDate} dòng thiếu ngày`);
   if(sk.noItem)  parts.push(`${sk.noItem} dòng thiếu tên`);
   if(sk.empty)   parts.push(`${sk.empty} dòng rỗng`);
