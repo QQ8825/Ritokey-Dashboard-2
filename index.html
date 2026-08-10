@@ -35,7 +35,7 @@
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{min-height:100vh;background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px}
-body{padding:20px 24px}
+body{padding:0}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:var(--bg3)}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
@@ -86,6 +86,38 @@ header{
 }
 #btn-refresh:hover{border-color:var(--blue);background:var(--blue-l)}
 #btn-refresh:disabled{color:var(--muted2);cursor:wait;border-color:var(--border)}
+
+/* ── Sidebar chọn trang ── */
+.shell{display:flex;min-height:100vh;align-items:stretch}
+.sidebar{
+  width:234px;flex-shrink:0;
+  background:var(--bg1);border-right:1px solid var(--border);
+  padding:20px 14px;display:flex;flex-direction:column;gap:24px;
+  position:sticky;top:0;height:100vh;overflow-y:auto;
+}
+.side-brand{display:flex;align-items:center;gap:11px;padding:0 6px}
+.side-label{
+  font-size:10px;color:var(--muted2);text-transform:uppercase;
+  letter-spacing:.9px;font-weight:700;padding:0 9px;margin-bottom:8px;
+}
+.side-nav{display:flex;flex-direction:column;gap:4px}
+.nav-item{
+  display:flex;align-items:flex-start;gap:9px;width:100%;
+  padding:10px 11px;border-radius:10px;cursor:pointer;
+  border:1.5px solid transparent;background:transparent;
+  font-family:var(--font);text-align:left;transition:all .15s;
+}
+.nav-item:hover{background:var(--bg3)}
+.nav-dot{width:8px;height:8px;border-radius:50%;background:var(--muted2);flex-shrink:0;margin-top:4px}
+.nav-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.nav-name{font-size:12.5px;font-weight:600;color:var(--muted);line-height:1.35}
+.nav-sub{font-size:9.5px;font-family:var(--mono);color:var(--muted2)}
+.nav-item.active{background:var(--blue-l);border-color:var(--blue)}
+.nav-item.active .nav-name,.nav-item.active .nav-sub{color:var(--blue)}
+.nav-item.active .nav-dot{background:var(--blue)}
+.nav-item.unset .nav-dot{background:var(--yellow)}
+.nav-item.unset .nav-sub{color:var(--yellow)}
+.main{flex:1;min-width:0;padding:20px 24px}
 
 /* ── Filters ── */
 .filters{
@@ -212,9 +244,13 @@ header{
 .bu-ord{font-size:11px;font-family:var(--mono);color:var(--blue);font-weight:600}
 
 /* ── Loading / Error ── */
-#loading,#error-screen{
+#loading,#error-screen,#setup-screen{
   min-height:60vh;display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:14px;
+}
+.error-hint code{
+  font-family:var(--mono);font-size:10px;background:var(--bg3);
+  border:1px solid var(--border);border-radius:4px;padding:1px 5px;color:var(--text);
 }
 .spinner{
   width:36px;height:36px;border:3px solid var(--border);
@@ -311,9 +347,22 @@ footer{
 @media(max-width:900px){
   .grid-4{grid-template-columns:repeat(2,1fr)}
   .grid-2{grid-template-columns:1fr}
-  body{padding:14px}
+  .main{padding:14px}
   #dr-panel{min-width:300px}
   .dr-calendars{flex-direction:column}
+  /* Sidebar xếp ngang trên mobile */
+  .shell{flex-direction:column}
+  .sidebar{
+    width:auto;height:auto;position:static;
+    border-right:none;border-bottom:1px solid var(--border);
+    flex-direction:row;align-items:center;gap:16px;padding:12px 14px;
+  }
+  .side-brand{flex-shrink:0}
+  .side-block{flex:1;min-width:0}
+  .side-label{display:none}
+  .side-nav{flex-direction:row;gap:6px}
+  .nav-item{flex:1;min-width:0}
+  .nav-sub{display:none}
 }
 
 /* ══════════════════════════════════════════
@@ -488,15 +537,32 @@ footer{
 </div>
 <!-- ══ / PIN OVERLAY ════════════════════════════════════ -->
 
+<div class="shell">
+
+<!-- ══ SIDEBAR — chọn trang ══════════════════════════════ -->
+<aside class="sidebar">
+  <div class="side-brand">
+    <div class="logo-dot">RK</div>
+    <div>
+      <div class="logo-title" style="font-size:15px">RITOKEY</div>
+      <div class="logo-sub">Internal Dashboard</div>
+    </div>
+  </div>
+  <div class="side-block">
+    <div class="side-label">Trang</div>
+    <div class="side-nav" id="side-nav"></div>
+  </div>
+</aside>
+
+<div class="main">
 <div class="wrap">
 
   <!-- Header -->
   <header>
     <div class="logo">
-      <div class="logo-dot">RK</div>
       <div>
-        <div class="logo-title">RITOKEY · HQS10000</div>
-        <div class="logo-sub">Sổ cấp hàng · <span id="last-updated">—</span></div>
+        <div class="logo-title" id="page-title">RITOKEY · HQS10000</div>
+        <div class="logo-sub"><span id="src-name">Sổ cấp hàng</span> · <span id="last-updated">—</span></div>
       </div>
     </div>
     <div class="header-right">
@@ -527,6 +593,17 @@ footer{
       Kiểm tra: Sheet đã được chia sẻ "Anyone with the link can view" chưa?
     </div>
     <button class="btn-retry" onclick="loadData(true)">↺ Thử lại</button>
+  </div>
+
+  <!-- Chưa gắn link nguồn -->
+  <div id="setup-screen" style="display:none">
+    <div class="error-icon">⚙️</div>
+    <div class="error-msg" style="color:var(--yellow)">Trang này chưa được gắn link Google Sheet</div>
+    <div class="error-hint" id="setup-detail"></div>
+    <div class="error-hint" style="margin-top:4px;color:var(--muted2)">
+      Mở <code>index.html</code>, tìm khối <code>SOURCES</code> ở đầu thẻ &lt;script&gt;
+      rồi dán link sheet vào ô <code>url</code> của trang tương ứng.
+    </div>
   </div>
 
   <!-- Dashboard -->
@@ -690,21 +767,60 @@ footer{
 
   </div><!-- /dashboard -->
 </div><!-- /wrap -->
+</div><!-- /main -->
+</div><!-- /shell -->
 
 <script>
-/* ─── Config ─────────────────────────────────────────── */
-const SHEET_ID = '1ri89f9lm0z43dQHTNMLxs2OSubGtfMeZ-zIREnXRC50';
-const GID      = '2137132884';
-const CSV_URL  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}`;
+/* ═══════════════════════════════════════════════════════
+   CONFIG — 2 trang, mỗi trang 1 link Google Sheet
+   Muốn đổi/thêm link: sửa ô `url` bên dưới, dán nguyên
+   đường dẫn sheet (kể cả phần #gid=... ở cuối) là được.
+═══════════════════════════════════════════════════════ */
+const SOURCES = [
+  {
+    id:    's1',
+    nav:   'Ritokey · HQS10000',      // tên hiện ở menu bên trái
+    title: 'RITOKEY · HQS10000',      // tiêu đề trên đầu trang
+    sub:   'Sổ cấp hàng',
+    url:   'https://docs.google.com/spreadsheets/d/1ri89f9lm0z43dQHTNMLxs2OSubGtfMeZ-zIREnXRC50/edit#gid=2137132884',
+  },
+  {
+    id:    's2',
+    nav:   'Doanh thu HQC300',
+    title: 'DOANH THU HQC300',
+    sub:   'Doanh thu',
+    url:   '',                        // ◀── DÁN LINK SHEET MỚI VÀO ĐÂY
+  },
+];
 const CACHE_MS = 5 * 60 * 1000;
 
-/* ─── State ──────────────────────────────────────────── */
-let RAW = [];
-let ALL_SKUS=[], ALL_BUS=[], ALL_DATES=[], ALL_WEEKS=[];
-let selBUs=new Set(), selSKUs=new Set();
-let selStatus='all', weekStatusFilter='all';
-let drStart=null, drEnd=null;
-let cachedAt=0;
+/* Tách SHEET_ID + gid ra khỏi link dán vào */
+function csvUrlOf(src){
+  if(!src || !src.url) return null;
+  const raw = src.url.trim();
+  if(!raw) return null;
+  const idm = raw.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/) || raw.match(/^([a-zA-Z0-9-_]{30,})$/);
+  if(!idm) return null;
+  const gidm = raw.match(/[#&?]gid=(\d+)/);
+  return `https://docs.google.com/spreadsheets/d/${idm[1]}/export?format=csv`
+       + (gidm ? `&gid=${gidm[1]}` : '');
+}
+
+/* ─── State — MỖI TRANG GIỮ DỮ LIỆU & BỘ LỌC RIÊNG ──── */
+function blankState(){
+  return {
+    RAW:[], ALL_SKUS:[], ALL_BUS:[], ALL_DATES:[], ALL_WEEKS:[],
+    selBUs:new Set(), selSKUs:new Set(),
+    selStatus:'all', weekStatusFilter:'all',
+    drStart:null, drEnd:null, cachedAt:0,
+  };
+}
+const STATE={};
+SOURCES.forEach(s=>{ STATE[s.id]=blankState(); });
+let curId = SOURCES[0].id;
+let S     = STATE[curId];                       // state của trang đang xem
+const curSrc = () => SOURCES.find(s=>s.id===curId);
+
 let chartCombo=null, chartWeekly=null;
 
 const SKU_PALETTE=['#2563eb','#059669','#d97706','#dc2626','#7c3aed','#ea580c','#0891b2','#db2777','#65a30d','#0284c7'];
@@ -757,13 +873,18 @@ function normHeader(s){
 
 /* ─── Fetch & parse ───────────────────────────────────── */
 async function loadData(force=false){
+  const src=curSrc();
+  const url=csvUrlOf(src);
+  if(!url){ showSetup(src); return; }
+
+  const st=S, myId=curId;              // chốt trang đang tải, tránh lẫn dữ liệu khi đổi trang giữa chừng
   const now=Date.now();
-  if(!force && RAW.length>0 && now-cachedAt<CACHE_MS){ render(); return; }
+  if(!force && st.RAW.length>0 && now-st.cachedAt<CACHE_MS){ render(); return; }
   setBtnLoading(true);
-  if(RAW.length===0) show('loading');
+  if(st.RAW.length===0) show('loading');
   hideBanner();
   try{
-    const res=await fetch(CSV_URL+'&t='+now,{cache:'no-store'});
+    const res=await fetch(url+'&t='+now,{cache:'no-store'});
     if(!res.ok) throw new Error(`HTTP ${res.status} — kiểm tra quyền sheet`);
     const text=await res.text();
     const result=Papa.parse(text,{skipEmptyLines:false});
@@ -793,7 +914,7 @@ async function loadData(force=false){
     const rows=allRows.slice(headerIdx+1).filter(r=>r.some(c=>c?.toString().trim()));
     if(!rows.length) throw new Error('Sheet trống hoặc header không đúng');
 
-    RAW=rows.map(c=>{
+    const parsed=rows.map(c=>{
       const sku   = c[iSKU]?.trim();
       const date  = normalizeDate(c[iDate]?.trim());
       const cost  = parseNum(c[iCost]) * 1000;   // Giá vốn (đơn vị nghìn)
@@ -807,43 +928,47 @@ async function loadData(force=false){
       return [c[iSTT]?.trim(), sku, date, cost, status, bu];
     }).filter(Boolean);
 
-    if(!RAW.length) throw new Error(
+    if(!parsed.length) throw new Error(
       `Không parse được dòng nào — cột dò được: SKU=${iSKU}, Ngày=${iDate}, Giá=${iCost}, TT=${iStatus}, BU=${iBU}. Kiểm tra header sheet.`);
 
-    cachedAt=Date.now();
+    st.RAW=parsed;
+    st.cachedAt=Date.now();
+    if(curId!==myId) return;           // đã chuyển sang trang khác → chỉ lưu, không vẽ
     deriveConstants();
     initFilters();
+    syncFilterUI();
     show('dashboard');
     render();
   }catch(e){
-    if(RAW.length>0){ showBanner(e.message); render(); }
+    if(curId!==myId) return;
+    if(st.RAW.length>0){ showBanner(e.message); render(); }
     else { document.getElementById('error-detail').textContent=e.message; show('error-screen'); }
-  } finally { setBtnLoading(false); }
+  } finally { if(curId===myId) setBtnLoading(false); }
 }
 
 function deriveConstants(){
-  ALL_SKUS=[...new Set(RAW.map(r=>r[1]))].sort();
-  ALL_BUS=[...new Set(RAW.map(r=>r[5]))].sort();
-  ALL_DATES=[...new Set(RAW.map(r=>r[2]))].sort((a,b)=>{
+  S.ALL_SKUS=[...new Set(S.RAW.map(r=>r[1]))].sort();
+  S.ALL_BUS=[...new Set(S.RAW.map(r=>r[5]))].sort();
+  S.ALL_DATES=[...new Set(S.RAW.map(r=>r[2]))].sort((a,b)=>{
     const[da,ma]=a.split('/').map(Number),[db,mb]=b.split('/').map(Number);
     return (ma*100+da)-(mb*100+db);
   });
-  ALL_WEEKS=[...new Set(ALL_DATES.map(getWeekLabel))].sort();
-  if(!selBUs.size)  selBUs=new Set(ALL_BUS);
-  if(!selSKUs.size) selSKUs=new Set(ALL_SKUS);
+  S.ALL_WEEKS=[...new Set(S.ALL_DATES.map(getWeekLabel))].sort();
+  if(!S.selBUs.size)  S.selBUs=new Set(S.ALL_BUS);
+  if(!S.selSKUs.size) S.selSKUs=new Set(S.ALL_SKUS);
 }
 
 /* ─── Filter init ─────────────────────────────────────── */
 function initFilters(){
   const fb=document.getElementById('f-bus');
-  fb.innerHTML=ALL_BUS.map(b=>{
+  fb.innerHTML=S.ALL_BUS.map(b=>{
     const color=b==='BD10F3'?'purple':b==='BU2'?'green':b==='BU4'?'yellow':'blue';
-    return `<span class="tag ${selBUs.has(b)?'active-'+color:''}" data-v="${b}" data-color="${color}" onclick="toggleBU(this)">${b}</span>`;
+    return `<span class="tag ${S.selBUs.has(b)?'active-'+color:''}" data-v="${b}" data-color="${color}" onclick="toggleBU(this)">${b}</span>`;
   }).join('');
   const sl=document.getElementById('sku-list');
-  sl.innerHTML=ALL_SKUS.map(s=>`
-    <label class="sku-item ${selSKUs.has(s)?'checked':''}" data-v="${s}">
-      <input type="checkbox" ${selSKUs.has(s)?'checked':''} onchange="toggleSKU('${s}',this)"/>
+  sl.innerHTML=S.ALL_SKUS.map(s=>`
+    <label class="sku-item ${S.selSKUs.has(s)?'checked':''}" data-v="${s}">
+      <input type="checkbox" ${S.selSKUs.has(s)?'checked':''} onchange="toggleSKU('${s}',this)"/>
       ${s.replace(/_$/,'')}
     </label>`).join('');
   updateSKULabel();
@@ -852,35 +977,41 @@ function initFilters(){
 /* ─── Filter actions ──────────────────────────────────── */
 function toggleBU(el){
   const b=el.dataset.v, c=el.dataset.color;
-  selBUs.has(b)?selBUs.delete(b):selBUs.add(b);
-  el.className='tag'+(selBUs.has(b)?` active-${c}`:'');
+  S.selBUs.has(b)?S.selBUs.delete(b):S.selBUs.add(b);
+  el.className='tag'+(S.selBUs.has(b)?` active-${c}`:'');
   render();
 }
-function setStatus(el){
-  selStatus=el.dataset.v;
+function paintStatusTags(){
   document.querySelectorAll('#f-status .tag').forEach(t=>{
-    t.className='tag'+(t.dataset.v===selStatus?' active-blue':'');
+    t.className='tag'+(t.dataset.v===S.selStatus?' active-blue':'');
   });
+}
+function paintWeekTags(){
+  const map={all:'blue',Done:'green',Cancel:'red',Other:'yellow'};
+  document.querySelectorAll('#f-week-status .tag').forEach(t=>{
+    t.className='tag'+(t.dataset.v===S.weekStatusFilter?` active-${map[t.dataset.v]||'blue'}`:'');
+  });
+}
+function setStatus(el){
+  S.selStatus=el.dataset.v;
+  paintStatusTags();
   render();
 }
 function setWeekStatus(el){
-  weekStatusFilter=el.dataset.v;
-  document.querySelectorAll('#f-week-status .tag').forEach(t=>{
-    const map={all:'blue',Done:'green',Cancel:'red',Other:'yellow'};
-    t.className='tag'+(t.dataset.v===weekStatusFilter?` active-${map[t.dataset.v]||'blue'}`:'');
-  });
+  S.weekStatusFilter=el.dataset.v;
+  paintWeekTags();
   renderWeeklyChart();
 }
 function toggleSKU(sku,cb){
-  cb.checked?selSKUs.add(sku):selSKUs.delete(sku);
+  cb.checked?S.selSKUs.add(sku):S.selSKUs.delete(sku);
   const lbl=cb.closest('.sku-item');
   if(lbl) lbl.className='sku-item'+(cb.checked?' checked':'');
   updateSKULabel(); render();
 }
-function skuAll(){ selSKUs=new Set(ALL_SKUS); initFilters(); render(); }
-function skuNone(){ selSKUs=new Set(); initFilters(); render(); }
+function skuAll(){ S.selSKUs=new Set(S.ALL_SKUS); initFilters(); render(); }
+function skuNone(){ S.selSKUs=new Set(); initFilters(); render(); }
 function updateSKULabel(){
-  document.getElementById('sku-count-label').textContent=`${selSKUs.size}/${ALL_SKUS.length} SKU`;
+  document.getElementById('sku-count-label').textContent=`${S.selSKUs.size}/${S.ALL_SKUS.length} SKU`;
 }
 
 let skuPanelOpen=false;
@@ -903,14 +1034,14 @@ function dateStrToObj(dateStr){
   return new Date(2026,m-1,d);
 }
 function getFiltered(){
-  return RAW.filter(([,sku,date,,status,bu])=>{
-    if(!selSKUs.has(sku)) return false;
-    if(!selBUs.has(bu||'—')) return false;
-    if(selStatus!=='all' && status!==selStatus) return false;
-    if(drStart||drEnd){
+  return S.RAW.filter(([,sku,date,,status,bu])=>{
+    if(!S.selSKUs.has(sku)) return false;
+    if(!S.selBUs.has(bu||'—')) return false;
+    if(S.selStatus!=='all' && status!==S.selStatus) return false;
+    if(S.drStart||S.drEnd){
       const dt=dateStrToObj(date);
-      if(drStart && dt<drStart) return false;
-      if(drEnd   && dt>drEnd)   return false;
+      if(S.drStart && dt<S.drStart) return false;
+      if(S.drEnd   && dt>S.drEnd)   return false;
     }
     return true;
   });
@@ -935,9 +1066,9 @@ function render(){
   document.getElementById('kpi-cancel').textContent=cancelRate+'%';
   document.getElementById('kpi-cancel-sub').textContent=cancel+' đơn bị huỷ';
 
-  const upd=cachedAt?new Date(cachedAt).toLocaleString('vi-VN'):'—';
-  document.getElementById('last-updated').textContent=cachedAt?new Date(cachedAt).toLocaleTimeString('vi-VN'):'—';
-  document.getElementById('footer-info').textContent=`${RAW.length} rows · Cập nhật ${upd}`;
+  const upd=S.cachedAt?new Date(S.cachedAt).toLocaleString('vi-VN'):'—';
+  document.getElementById('last-updated').textContent=S.cachedAt?new Date(S.cachedAt).toLocaleTimeString('vi-VN'):'—';
+  document.getElementById('footer-info').textContent=`${S.RAW.length} rows · Cập nhật ${upd}`;
 
   renderComboChart(f);
   renderWeeklyChart();
@@ -954,7 +1085,7 @@ const CHART_DEFAULTS={
 
 /* ─── Combo chart ─────────────────────────────────────── */
 function renderComboChart(f){
-  const dates=ALL_DATES.filter(d=>f.some(r=>r[2]===d));
+  const dates=S.ALL_DATES.filter(d=>f.some(r=>r[2]===d));
   const revData=dates.map(d=>f.filter(r=>r[2]===d).reduce((s,r)=>s+r[3],0));
   const ordData=dates.map(d=>f.filter(r=>r[2]===d).length);
 
@@ -990,23 +1121,23 @@ function renderComboChart(f){
 
 /* ─── Weekly status chart ─────────────────────────────── */
 function renderWeeklyChart(){
-  const weeks=ALL_WEEKS.filter(w=>ALL_DATES.some(d=>{
+  const weeks=S.ALL_WEEKS.filter(w=>S.ALL_DATES.some(d=>{
     if(getWeekLabel(d)!==w) return false;
-    if(drStart||drEnd){const dt=dateStrToObj(d);if(drStart&&dt<drStart)return false;if(drEnd&&dt>drEnd)return false;}
+    if(S.drStart||S.drEnd){const dt=dateStrToObj(d);if(S.drStart&&dt<S.drStart)return false;if(S.drEnd&&dt>S.drEnd)return false;}
     return true;
   }));
-  const show=v=>weekStatusFilter==='all'||weekStatusFilter===v;
+  const showSt=v=>S.weekStatusFilter==='all'||S.weekStatusFilter===v;
 
-  const makeData=(filter)=>weeks.map(w=>RAW.filter(r=>{
-    if(getWeekLabel(r[2])!==w||!selSKUs.has(r[1])||!selBUs.has(r[5]||'—')) return false;
+  const makeData=(filter)=>weeks.map(w=>S.RAW.filter(r=>{
+    if(getWeekLabel(r[2])!==w||!S.selSKUs.has(r[1])||!S.selBUs.has(r[5]||'—')) return false;
     if(!filter(r)) return false;
-    if(drStart||drEnd){const dt=dateStrToObj(r[2]);if(drStart&&dt<drStart)return false;if(drEnd&&dt>drEnd)return false;}
+    if(S.drStart||S.drEnd){const dt=dateStrToObj(r[2]);if(S.drStart&&dt<S.drStart)return false;if(S.drEnd&&dt>S.drEnd)return false;}
     return true;
   }).length);
 
-  const doneData  =show('Done')  ?makeData(r=>r[4]==='Done')  :weeks.map(()=>0);
-  const cancelData=show('Cancel')?makeData(r=>r[4]==='Cancel'):weeks.map(()=>0);
-  const otherData =show('Other') ?makeData(r=>r[4]!=='Done'&&r[4]!=='Cancel'):weeks.map(()=>0);
+  const doneData  =showSt('Done')  ?makeData(r=>r[4]==='Done')  :weeks.map(()=>0);
+  const cancelData=showSt('Cancel')?makeData(r=>r[4]==='Cancel'):weeks.map(()=>0);
+  const otherData =showSt('Other') ?makeData(r=>r[4]!=='Done'&&r[4]!=='Cancel'):weeks.map(()=>0);
   const totalData =weeks.map((_,i)=>doneData[i]+cancelData[i]+otherData[i]);
 
   if(chartWeekly) chartWeekly.destroy();
@@ -1087,10 +1218,15 @@ function renderBURows(f){
 
 /* ─── UI helpers ──────────────────────────────────────── */
 function show(id){
-  ['loading','error-screen','dashboard'].forEach(i=>{
+  ['loading','error-screen','setup-screen','dashboard'].forEach(i=>{
     const el=document.getElementById(i);
-    el.style.display=(i===id)?(['loading','error-screen'].includes(i)?'flex':'block'):'none';
+    el.style.display=(i===id)?(i==='dashboard'?'block':'flex'):'none';
   });
+}
+function showSetup(src){
+  document.getElementById('setup-detail').textContent=`Trang “${src.nav}” chưa có link nguồn dữ liệu.`;
+  hideBanner(); setBtnLoading(false);
+  show('setup-screen');
 }
 function showBanner(msg){
   const b=document.getElementById('error-banner'); b.classList.add('show');
@@ -1114,7 +1250,7 @@ function toggleDRPanel(){
   drPanelOpen=!drPanelOpen;
   document.getElementById('dr-panel').className=drPanelOpen?'open':'';
   document.getElementById('dr-arrow').textContent=drPanelOpen?'▴':'▾';
-  if(drPanelOpen){ pickStart=drStart?new Date(drStart):null; pickEnd=drEnd?new Date(drEnd):null; renderCals(); }
+  if(drPanelOpen){ pickStart=S.drStart?new Date(S.drStart):null; pickEnd=S.drEnd?new Date(S.drEnd):null; renderCals(); }
 }
 function closeDRPanel(){
   drPanelOpen=false;
@@ -1136,7 +1272,7 @@ function renderCals(){
 function renderCal(elId, year, month, side){
   const el=document.getElementById(elId);
   const today=new Date(); today.setHours(0,0,0,0);
-  const dataDates=new Set(ALL_DATES);
+  const dataDates=new Set(S.ALL_DATES);
   const firstDay=new Date(year,month,1);
   const startDow=(firstDay.getDay()+6)%7;
   const daysInMonth=new Date(year,month+1,0).getDate();
@@ -1221,19 +1357,20 @@ function updateSelectedText(){
 }
 
 function applyDR(){
-  drStart=pickStart||null;
+  S.drStart=pickStart||null;
   // Chỉ chọn 1 ngày (chưa có ngày kết thúc) → lọc đúng riêng ngày đó
-  drEnd=pickEnd || (pickStart ? new Date(pickStart) : null);
+  S.drEnd=pickEnd || (pickStart ? new Date(pickStart) : null);
   updateDRLabel(); closeDRPanel(); render();
 }
 function cancelDR(){ closeDRPanel(); }
 
 function updateDRLabel(){
   const el=document.getElementById('dr-label');
-  if(!drStart&&!drEnd){ el.textContent='Tất cả'; return; }
+  const a=S.drStart, b=S.drEnd;
+  if(!a&&!b){ el.textContent='Tất cả'; return; }
   const f=dt=>`${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
-  if(drStart&&drEnd) el.textContent = drStart.getTime()===drEnd.getTime() ? f(drStart) : `${f(drStart)} → ${f(drEnd)}`;
-  else if(drStart)   el.textContent=`Từ ${f(drStart)}`;
+  if(a&&b) el.textContent = a.getTime()===b.getTime() ? f(a) : `${f(a)} → ${f(b)}`;
+  else if(a) el.textContent=`Từ ${f(a)}`;
 }
 
 function applyPreset(el){
@@ -1347,10 +1484,51 @@ document.addEventListener('keydown', e=>{
   if(el) el.addEventListener('input', clearError);
 });
 
+/* ─── Sidebar: chuyển trang ───────────────────────────── */
+function renderNav(){
+  document.getElementById('side-nav').innerHTML=SOURCES.map(s=>{
+    const unset=!csvUrlOf(s);
+    const cls='nav-item'+(s.id===curId?' active':'')+(unset?' unset':'');
+    return `<button class="${cls}" onclick="switchPage('${s.id}')">
+      <span class="nav-dot"></span>
+      <span class="nav-text">
+        <span class="nav-name">${s.nav}</span>
+        <span class="nav-sub">${unset?'chưa gắn link':s.sub}</span>
+      </span>
+    </button>`;
+  }).join('');
+}
+
+/* Đồng bộ header + trạng thái các nút lọc theo trang đang xem */
+function syncFilterUI(){
+  const src=curSrc();
+  document.getElementById('page-title').textContent=src.title;
+  document.getElementById('src-name').textContent=src.sub;
+  paintStatusTags();
+  paintWeekTags();
+  updateDRLabel();
+  document.querySelectorAll('.dr-preset').forEach(p=>
+    p.classList.toggle('active', p.dataset.p==='all' && !S.drStart && !S.drEnd));
+}
+
+function switchPage(id){
+  if(id===curId) return;
+  closeDRPanel(); hideBanner(); setBtnLoading(false);
+  curId=id; S=STATE[id];
+  renderNav();
+  syncFilterUI();
+  const src=curSrc();
+  if(!csvUrlOf(src)){ showSetup(src); return; }
+  if(S.RAW.length){ initFilters(); show('dashboard'); render(); }  // đã tải rồi → hiện lại ngay
+  else loadData();
+}
+
 /* ─── Boot ────────────────────────────────────────────── */
+renderNav();
+syncFilterUI();
 if(checkSession()){
-  // Đã xác thực trong tab này → ẩn PIN và load ngay
-  document.getElementById('pin-overlay').style.display='none';
+  // Đã xác thực trong tab này → gỡ hẳn màn PIN và load ngay
+  document.getElementById('pin-overlay').remove();
   loadData();
 }
 // Nếu chưa xác thực → PIN overlay hiện sẵn, loadData() được gọi sau khi unlock
