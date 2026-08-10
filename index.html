@@ -866,16 +866,14 @@ const SCHEMAS = {
       item :'Top Sản Phẩm theo Doanh Thu',
       bu   :'Theo Sàn & Nhóm Số Lượng', buCol:'Sàn', amountCol:'Doanh thu', countCol:'Dòng',
     },
-    /* 4 thẻ giống trang sổ cấp hàng. Sheet không có cột trạng thái nên
-       "Tỷ lệ cancel" = tỷ lệ đơn có SL = 0 (không giao được hàng).
-       Dòng phụ của 2 thẻ đầu tách sẵn số liệu theo từng sàn. */
+    /* 4 thẻ KPI. Dòng phụ của 2 thẻ đầu tách sẵn số liệu theo từng sàn.
+       Sheet hiện CHƯA có cột đánh dấu đơn huỷ nên thẻ cancel để 0,0%.
+       Khi nào sheet có cột đó: khai báo thêm `group` trong cols ở trên
+       cùng hàm groupOf, rồi tính rate ở đây từ f.filter(r=>r[4]==='Cancel'). */
     kpis(f){
       const rev  = f.reduce((s,r)=>s+r[3],0);
       const n    = f.length;
       const avg  = n?rev/n:0;
-      const zero = f.filter(r=>r[4]===GRP_ZERO);
-      const revZ = zero.reduce((s,r)=>s+r[3],0);
-      const rate = n?((zero.length/n)*100).toFixed(1):'0.0';
       // lấy danh sách sàn từ toàn bộ dữ liệu để khi xem riêng 1 sàn vẫn thấy đủ tên
       const plats=S.ALL_BUS.slice();
       const perPlat=fn=>plats.length>1 ? plats.map(p=>`${p} ${fn(f.filter(r=>r[5]===p))}`).join(' · ') : null;
@@ -886,8 +884,7 @@ const SCHEMAS = {
         {label:'Tổng đơn hàng',  val:String(n),
          sub: perPlat(rows=>String(rows.length)) || 'đơn ghi nhận'},
         {label:'Trung bình / đơn', val:money(avg), sub:moneyFull(avg)},
-        {label:'Tỷ lệ cancel',   val:rate+'%',
-         sub:`${zero.length} đơn SL = 0 · ${money(revZ)}`},
+        {label:'Tỷ lệ cancel',   val:'0,0%', sub:'sheet chưa có dữ liệu đơn huỷ'},
       ];
     },
   },
