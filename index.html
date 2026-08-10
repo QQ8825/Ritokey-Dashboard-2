@@ -925,6 +925,7 @@ function blankState(){
     selBUs:new Set(), selSKUs:new Set(),
     selStatus:'all', weekStatusFilter:'all',
     drStart:null, drEnd:null, cachedAt:0,
+    skipped:{noDate:0,noItem:0,empty:0,lostMoney:0},
   };
 }
 const STATE={};
@@ -1047,21 +1048,38 @@ function parseSheet(text, sc, sheetName){
   if(!rows.length) throw new Error('sheet trống hoặc header không đúng');
 
   const cell=(c,i)=> i>=0 ? (c[i]==null?'':c[i].toString().trim()) : '';
+  // Đếm rõ từng loại dòng bị loại để tổng không bao giờ hụt một cách âm thầm
+  let noDate=0, noItem=0, lostMoney=0;
   const parsed=rows.map(c=>{
     const item = cell(c,iItem);
     const date = normalizeDate(cell(c,iDate));
-    if(!date||!item) return null;
+    if(!date||!item){
+      const amt=sc.currency==='USD'?parseAmount(cell(c,iAmt)):parseNum(cell(c,iAmt));
+      if(amt) lostMoney+=amt*sc.amountScale;   // dòng có tiền mà bị loại → phải báo
+      if(!date) noDate++; else noItem++;
+      return null;
+    }
     const amount = (sc.currency==='USD' ? parseAmount(cell(c,iAmt)) : parseNum(cell(c,iAmt))) * sc.amountScale;
     const qty    = iQty>=0 ? parseQty(cell(c,iQty)) : 0;
     const group  = sc.groupOf ? sc.groupOf(cell(c,iGroup)) : sc.groupOfQty(qty);
     const bu     = sheetName || cell(c,iBU) || '—';
     return [cell(c,iSTT), item, date, amount, group, bu, qty];
-  }).filter(Boolean).filter(r=>sc.keep?sc.keep(r):true);
+  }).filter(Boolean);
 
-  if(!parsed.length) throw new Error(
+  let empty=0;
+  const kept=sc.keep ? parsed.filter(r=>{ const k=sc.keep(r); if(!k) empty++; return k; }) : parsed;
+
+  if(!kept.length) throw new Error(
     `không đọc được dòng nào (cột dò được: ${sc.itemLabel}=${iItem}, Ngày=${iDate}, Tiền=${iAmt}`
     + (iQty>=0?`, SL=${iQty}`:'') + `)`);
-  return parsed;
+  return {rows:kept, noDate, noItem, empty, lostMoney, total:rows.length};
+}
+
+// Chữ ký nội dung để phát hiện 2 sheet trả về cùng một dữ liệu (gid sai / publish thiếu sheet)
+function sigOf(text){
+  let h=0;
+  for(let i=0;i<text.length;i++) h=(h*31+text.charCodeAt(i))|0;
+  return text.length+':'+h;
 }
 
 /* ─── Fetch & parse ───────────────────────────────────────
@@ -1085,7 +1103,8 @@ async function loadData(force=false){
         const sep=sh.csv.includes('?')?'&':'?';
         const res=await fetch(sh.csv+sep+'t='+now,{cache:'no-store'});
         if(!res.ok) throw new Error(`HTTP ${res.status}`);
-        return {name:sh.name, rows:parseSheet(await res.text(), sc, sh.name)};
+        const text=await res.text();
+        return {name:sh.name, sig:sigOf(text), ...parseSheet(text, sc, sh.name)};
       }catch(e){ return {name:sh.name, err:e.message}; }
     }));
 
@@ -1094,7 +1113,21 @@ async function loadData(force=false){
     if(!ok.length) throw new Error(
       bad.map(b=>`${b.name||'Sheet'}: ${b.err}`).join(' · ') + ' — kiểm tra quyền chia sẻ và gid của sheet');
 
-    st.RAW=ok.flatMap(r=>r.rows);
+    // Hai sheet trả về y hệt nhau ⇒ gid sai hoặc mới publish 1 sheet.
+    // Bỏ bản trùng, thà báo lỗi còn hơn hiển thị tổng bị cộng đôi.
+    const seen=new Map(), uniq=[], dups=[];
+    ok.forEach(r=>{
+      if(seen.has(r.sig)) dups.push(`${r.name} trùng hệt ${seen.get(r.sig)}`);
+      else { seen.set(r.sig,r.name); uniq.push(r); }
+    });
+
+    st.RAW=uniq.flatMap(r=>r.rows);
+    st.skipped={
+      noDate:   uniq.reduce((s,r)=>s+r.noDate,0),
+      noItem:   uniq.reduce((s,r)=>s+r.noItem,0),
+      empty:    uniq.reduce((s,r)=>s+r.empty,0),
+      lostMoney:uniq.reduce((s,r)=>s+r.lostMoney,0),
+    };
     st.cachedAt=Date.now();
     if(curId!==myId) return;           // đã chuyển sang trang khác → chỉ lưu, không vẽ
     deriveConstants();
@@ -1102,7 +1135,13 @@ async function loadData(force=false){
     syncFilterUI();
     show('dashboard');
     render();
-    if(bad.length) showBanner('Không tải được '+bad.map(b=>`${b.name||'sheet'} (${b.err})`).join(', '));
+
+    const warn=[];
+    if(dups.length) warn.push('⛔ '+dups.join(', ')+' → đã bỏ bản trùng để tổng không bị cộng đôi. Kiểm tra lại gid / phạm vi xuất bản sheet.');
+    if(bad.length)  warn.push('Không tải được '+bad.map(b=>`${b.name||'sheet'} (${b.err})`).join(', '));
+    if(st.skipped.lostMoney)
+      warn.push(`${money(st.skipped.lostMoney)} nằm ở ${st.skipped.noDate+st.skipped.noItem} dòng bị bỏ qua (thiếu ngày hoặc thiếu tên sản phẩm)`);
+    if(warn.length) showBanner(warn.join(' · '));
   }catch(e){
     if(curId!==myId) return;
     if(st.RAW.length>0){ showBanner(e.message); render(); }
@@ -1111,6 +1150,7 @@ async function loadData(force=false){
 }
 
 function deriveConstants(){
+  const prevSKUs=new Set(S.ALL_SKUS), prevBUs=new Set(S.ALL_BUS);
   S.ALL_SKUS=[...new Set(S.RAW.map(r=>r[1]))].sort();
   S.ALL_BUS=[...new Set(S.RAW.map(r=>r[5]))].sort();
   S.ALL_DATES=[...new Set(S.RAW.map(r=>r[2]))].sort((a,b)=>{
@@ -1118,8 +1158,19 @@ function deriveConstants(){
     return (ma*100+da)-(mb*100+db);
   });
   S.ALL_WEEKS=[...new Set(S.ALL_DATES.map(getWeekLabel))].sort();
-  if(!S.selBUs.size)  S.selBUs=new Set(S.ALL_BUS);
-  if(!S.selSKUs.size) S.selSKUs=new Set(S.ALL_SKUS);
+
+  // Đồng bộ tập đang chọn với dữ liệu mới:
+  //  - giá trị MỚI xuất hiện → tự chọn, nếu không doanh thu của nó bị trừ khỏi tổng
+  //  - giá trị đã biến mất  → loại khỏi tập chọn
+  // Lần tải đầu prev rỗng nên mọi thứ đều được chọn; còn khi người dùng chủ động
+  // bỏ chọn thì lựa chọn đó vẫn được giữ nguyên qua các lần làm mới.
+  const sync=(sel,all,prev)=>{
+    all.forEach(v=>{ if(!prev.has(v)) sel.add(v); });
+    const alive=new Set(all);
+    [...sel].forEach(v=>{ if(!alive.has(v)) sel.delete(v); });
+  };
+  sync(S.selBUs,  S.ALL_BUS,  prevBUs);
+  sync(S.selSKUs, S.ALL_SKUS, prevSKUs);
 }
 
 /* ─── Filter init ─────────────────────────────────────── */
@@ -1282,7 +1333,17 @@ function render(){
 
   const upd=S.cachedAt?new Date(S.cachedAt).toLocaleString('vi-VN'):'—';
   document.getElementById('last-updated').textContent=S.cachedAt?new Date(S.cachedAt).toLocaleTimeString('vi-VN'):'—';
-  document.getElementById('footer-info').textContent=`${S.RAW.length} rows · Cập nhật ${upd}`;
+
+  // Footer nói rõ vì sao tổng có thể khác sheet: đang lọc bớt, hoặc có dòng bị bỏ qua
+  const sk=S.skipped||{};
+  const parts=[`${S.RAW.length} dòng đọc được`];
+  if(S.selSKUs.size<S.ALL_SKUS.length)
+    parts.push(`⚠ đang lọc ${S.selSKUs.size}/${S.ALL_SKUS.length} ${curSchema().itemShort}`);
+  if(sk.noDate)  parts.push(`${sk.noDate} dòng thiếu ngày`);
+  if(sk.noItem)  parts.push(`${sk.noItem} dòng thiếu tên`);
+  if(sk.empty)   parts.push(`${sk.empty} dòng rỗng`);
+  parts.push(`Cập nhật ${upd}`);
+  document.getElementById('footer-info').textContent=parts.join(' · ');
 
   renderComboChart(f);
   renderWeeklyChart();
