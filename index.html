@@ -368,12 +368,16 @@ header{
 .cmp-delta{
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
   padding:14px 16px;border-radius:12px;background:var(--bg2);
-  border:1px solid var(--border);min-width:124px;
+  border:1px solid var(--border);min-width:158px;
 }
 .cmp-delta .d-arrow{font-size:17px;line-height:1}
 .cmp-delta .d-pct{font-size:17px;font-family:var(--mono);font-weight:700;line-height:1.1}
 .cmp-delta .d-abs{font-size:10px;font-family:var(--mono);color:var(--muted)}
 .cmp-delta .d-cap{font-size:9px;font-family:var(--mono);color:var(--muted2);text-transform:uppercase;letter-spacing:.6px}
+.cmp-delta .d-tot{
+  font-size:9px;font-family:var(--mono);color:var(--muted2);
+  margin-top:7px;padding-top:7px;border-top:1px solid var(--border);width:100%;text-align:center;
+}
 .cmp-up  {color:var(--green)}
 .cmp-down{color:var(--red)}
 .cmp-flat{color:var(--muted)}
@@ -392,12 +396,12 @@ header{
 .an-lead b{font-weight:700}
 /* Hàng tiêu đề và các dòng là hai lưới riêng nên 3 cột bên phải phải có
    bề rộng cố định, nếu không mỗi lưới tự co theo nội dung và lệch nhau. */
-.an-grid{display:grid;grid-template-columns:10px minmax(0,1fr) 162px 84px 92px;align-items:center;gap:10px}
+.an-grid{display:grid;grid-template-columns:10px minmax(0,1fr) 192px 84px 92px;align-items:center;gap:10px}
 .an-th{
   padding:0 11px 7px;font-size:9px;font-family:var(--mono);color:var(--muted2);
   text-transform:uppercase;letter-spacing:.7px;font-weight:700;
 }
-.an-th .th-flow{text-align:right}
+.an-th .th-flow{text-align:right;font-size:8.5px;white-space:nowrap}
 .an-th .th-badge{text-align:center}
 .an-th .th-abs{text-align:right}
 .an-row{
@@ -1648,9 +1652,11 @@ document.addEventListener('mousedown',e=>{
 });
 
 /* ─── Filtered data ───────────────────────────────────── */
+// Ngày trong dữ liệu không mang năm nên dashboard quy ước chung một năm
+const DATA_YEAR=2026;
 function dateStrToObj(dateStr){
   const [d,m]=dateStr.split('/').map(Number);
-  return new Date(2026,m-1,d);
+  return new Date(DATA_YEAR,m-1,d);
 }
 // Ngày trong RAW có dạng "dd/MM" → lấy số tháng
 const monthOf = dateStr => +dateStr.split('/')[1];
@@ -1678,10 +1684,24 @@ function getFiltered(){ return S.RAW.filter(r=>matchNonTime(r)&&matchTime(r)); }
    - chọn 1 tháng      → tháng đó so với tháng liền trước
    - đặt khoảng ngày   → khoảng đó so với khoảng dài bằng nó ngay trước
    - không lọc gì      → tháng gần nhất có dữ liệu so với tháng trước đó */
+/* Số ngày ĐÃ TRÔI QUA của một tháng, chặn ở hôm nay.
+   Tháng đã qua lấy trọn số ngày; tháng đang chạy chỉ lấy tới hôm nay
+   (ví dụ hôm nay 3/10 thì tháng 10 tính 3 ngày, không phải 31).      */
+function monthElapsedDays(m){
+  const today=new Date(); today.setHours(0,0,0,0);
+  const total=new Date(DATA_YEAR,m,0).getDate();
+  if(today.getFullYear()!==DATA_YEAR) return total;   // dữ liệu khác năm hiện tại → coi như đã trọn
+  const cur=today.getMonth()+1;
+  if(m>cur)  return 0;
+  if(m===cur) return Math.min(today.getDate(),total);
+  return total;
+}
+
 function comparePeriods(){
+  const today=new Date(); today.setHours(0,0,0,0);
   const byMonth=(a,b)=>({
-    aLabel:`Tháng ${a}`, aTest:r=>monthOf(r[2])===a,
-    bLabel:`Tháng ${b}`, bTest:r=>monthOf(r[2])===b,
+    aLabel:`Tháng ${a}`, aTest:r=>monthOf(r[2])===a, aDays:monthElapsedDays(a),
+    bLabel:`Tháng ${b}`, bTest:r=>monthOf(r[2])===b, bDays:monthElapsedDays(b),
   });
   if(S.selMonth!=null) return byMonth(S.selMonth, S.selMonth===1?12:S.selMonth-1);
 
@@ -1692,15 +1712,18 @@ function comparePeriods(){
     const pStart=new Date(pEnd);    pStart.setDate(pStart.getDate()-len+1);
     const f=d=>`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
     const within=(r,s,e)=>{ const dt=dateStrToObj(r[2]); return dt>=s&&dt<=e; };
+    // khoảng kéo sang tương lai thì chỉ tính tới hôm nay
+    const span=(s,e)=>Math.max(0, Math.round(((e>today?today:e)-s)/DAY)+1);
     return {
-      aLabel:`${f(S.drStart)} → ${f(S.drEnd)}`, aTest:r=>within(r,S.drStart,S.drEnd),
-      bLabel:`${f(pStart)} → ${f(pEnd)}`,       bTest:r=>within(r,pStart,pEnd),
+      aLabel:`${f(S.drStart)} → ${f(S.drEnd)}`, aTest:r=>within(r,S.drStart,S.drEnd), aDays:span(S.drStart,S.drEnd),
+      bLabel:`${f(pStart)} → ${f(pEnd)}`,       bTest:r=>within(r,pStart,pEnd),       bDays:span(pStart,pEnd),
     };
   }
   const m=S.ALL_MONTHS;
   if(m.length>=2) return byMonth(m[m.length-1], m[m.length-2]);
-  if(m.length===1) return {aLabel:`Tháng ${m[0]}`, aTest:()=>true, bLabel:'kỳ trước', bTest:()=>false};
-  return {aLabel:'—', aTest:()=>false, bLabel:'—', bTest:()=>false};
+  if(m.length===1) return {aLabel:`Tháng ${m[0]}`, aTest:()=>true, aDays:monthElapsedDays(m[0]),
+                           bLabel:'kỳ trước',      bTest:()=>false, bDays:0};
+  return {aLabel:'—', aTest:()=>false, aDays:0, bLabel:'—', bTest:()=>false, bDays:0};
 }
 
 /* ─── Render ──────────────────────────────────────────── */
@@ -2110,38 +2133,47 @@ function renderCompare(){
   const colors=keys.map((k,i)=>dimColor(dim,k,i));
 
   const put=(id,v)=>{ const e=document.getElementById(id); if(e) e.textContent=v; };
+  // So sánh theo TRUNG BÌNH MỖI NGÀY: kỳ đang chạy mới đi được vài ngày,
+  // đem tổng của nó so với một tháng đã trọn thì luôn ra "giảm" một cách sai lệch.
+  const dA=P.aDays||0, dB=P.bDays||0;
+  const per=(v,d)=>d>0?v/d:0;
+  const perA=per(totA,dA), perB=per(totB,dB);
+
   put('cmp-a-label',P.aLabel); put('cmp-b-label',P.bLabel);
   put('cmp-a-total',money(totA)); put('cmp-b-total',money(totB));
-  put('cmp-a-sub',`· ${A.length} đơn`); put('cmp-b-sub',`· ${B.length} đơn`);
+  put('cmp-a-sub',`· ${A.length} đơn · ${dA} ngày · TB ${money(perA)}/ngày`);
+  put('cmp-b-sub',`· ${B.length} đơn · ${dB} ngày · TB ${money(perB)}/ngày`);
 
-  // Ô chênh lệch ở giữa
+  // Ô chênh lệch ở giữa — tính trên TB/ngày
   const box=document.getElementById('cmp-delta');
-  const diff=totA-totB;
+  const diff=perA-perB, totDiff=totA-totB;
+  const totLine=`<div class="d-tot">Tổng ${money(totB)} → ${money(totA)}</div>`;
   if(!B.length && !A.length){
     box.className='cmp-delta cmp-flat';
     box.innerHTML='<div class="d-cap">không có dữ liệu</div>';
-  }else if(!B.length){
+  }else if(!B.length || !dB){
     box.className='cmp-delta cmp-flat';
     box.innerHTML='<div class="d-cap">kỳ trước</div><div class="d-abs">chưa có dữ liệu</div>';
   }else{
-    const pct=(diff/Math.abs(totB))*100;
+    const pct=(diff/Math.abs(perB))*100;
     const up=diff>0.000001, down=diff<-0.000001;
     box.className='cmp-delta '+(up?'cmp-up':down?'cmp-down':'cmp-flat');
     box.innerHTML=
       `<div class="d-arrow">${up?'▲':down?'▼':'='}</div>`+
       `<div class="d-pct">${up?'+':''}${pct.toFixed(1).replace('.',',')}%</div>`+
-      `<div class="d-abs">${up?'+':''}${money(diff)}</div>`+
-      `<div class="d-cap">so với kỳ trước</div>`;
+      `<div class="d-abs">${money(perB)} → ${money(perA)}</div>`+
+      `<div class="d-cap">trung bình mỗi ngày</div>`+
+      totLine;
   }
 
   drawDonut('chart-cmp-a','A',keys,keys.map(k=>mA[k]||0),colors,totA);
   drawDonut('chart-cmp-b','B',keys,keys.map(k=>mB[k]||0),colors,totB);
-  renderAnalysis(dim,keys,colors,mA,mB,P);
+  renderAnalysis(dim,keys,colors,mA,mB,P,dA,dB);
 }
 
 /* Dựng đoạn nhận xét từ chính số liệu: tổng quan, mức độ tập trung của
    thay đổi, độ lan rộng, rồi các mục mới phát sinh và mục đã ngừng.    */
-function buildNote(dim,rows,totA,totB,P){
+function buildNote(dim,rows,totA,totB,P,dA,dB){
   const lab=dimLabel(dim).toLowerCase();
   const pc = v => v.toFixed(1).replace('.',',')+'%';
   const diff=totA-totB;
@@ -2153,14 +2185,15 @@ function buildNote(dim,rows,totA,totB,P){
 
   // 1 · tổng quan
   if(!totB){
-    s.push(`<b>${esc(P.aLabel)}</b> đạt <b>${moneyFull(totA)}</b>. `
+    s.push(`<b>${esc(P.aLabel)}</b> đạt trung bình <b>${moneyFull(totA)}/ngày</b> (${dA} ngày). `
          + `Chưa có dữ liệu ở ${esc(P.bLabel)} nên chưa so sánh được; các con số dưới đây đều là phát sinh mới.`);
   }else{
     const word = dir==='up'?'<span class="up">tăng</span>' : dir==='down'?'<span class="down">giảm</span>' : 'đi ngang';
     const pct  = pc(Math.abs(diff/Math.abs(totB)*100));
-    s.push(`<b>${esc(P.aLabel)}</b> đạt <b>${moneyFull(totA)}</b>, ${word}`
-         + (dir==='flat'?'':` <b>${pct}</b> (${diff>0?'+':'−'}${money(Math.abs(diff))})`)
-         + ` so với ${esc(P.bLabel)} — ${moneyFull(totB)}.`);
+    s.push(`<b>${esc(P.aLabel)}</b> đạt trung bình <b>${moneyFull(totA)}/ngày</b> (${dA} ngày), ${word}`
+         + (dir==='flat'?'':` <b>${pct}</b>`)
+         + ` so với <b>${moneyFull(totB)}/ngày</b> của ${esc(P.bLabel)} (${dB} ngày).`
+         + (dA<dB?` Kỳ này mới đi được ${dA}/${dB} ngày nên so theo trung bình ngày thay vì so tổng.`:''));
   }
 
   const ups=rows.filter(r=>r.d>0), downs=rows.filter(r=>r.d<0);
@@ -2202,19 +2235,22 @@ function buildNote(dim,rows,totA,totB,P){
 /* Bảng phân tích từng mục: kỳ trước → kỳ này, mức tăng giảm theo % và theo
    số tiền. Mục mới phát sinh hoặc đã ngừng được đánh dấu riêng vì chia cho
    0 không ra phần trăm có nghĩa. */
-function renderAnalysis(dim,keys,colors,mA,mB,P){
+function renderAnalysis(dim,keys,colors,mA,mB,P,dA,dB){
   const box=document.getElementById('cmp-analysis');
   if(!box) return;
   const LIMIT = dim==='item' ? 8 : 20;
 
+  // Mọi phép so sánh dưới đây đều quy về TRUNG BÌNH MỖI NGÀY cho công bằng
+  // giữa một kỳ đã trọn và một kỳ mới đi được vài ngày.
+  const per=(v,d)=>d>0?v/d:0;
   const rows=keys.map((k,i)=>{
-    const a=mA[k]||0, b=mB[k]||0, d=a-b;
+    const a=per(mA[k]||0,dA), b=per(mB[k]||0,dB), d=a-b;
     let kind, pct=null;
     if(b===0 && a>0)      kind='new';
     else if(a===0 && b>0) kind='stop';
     else if(Math.abs(d)<0.005) kind='flat';
     else { kind=d>0?'up':'down'; pct=(d/Math.abs(b))*100; }
-    return {k,a,b,d,pct,kind,color:colors[i]};
+    return {k,a,b,d,pct,kind,color:colors[i],rawA:mA[k]||0,rawB:mB[k]||0};
   }).sort((x,y)=>Math.abs(y.d)-Math.abs(x.d));
 
   if(!rows.length){
@@ -2235,8 +2271,7 @@ function renderAnalysis(dim,keys,colors,mA,mB,P){
                  n('new')&&`${n('new')} mới`, n('stop')&&`${n('stop')} ngừng`]
                 .filter(Boolean).join(' · ');
 
-  const totA=rows.reduce((a,r)=>a+r.a,0), totB=rows.reduce((a,r)=>a+r.b,0);
-  const note=buildNote(dim,rows,totA,totB,P);
+  const note=buildNote(dim,rows,rows.reduce((a,r)=>a+r.a,0),rows.reduce((a,r)=>a+r.b,0),P,dA,dB);
 
   box.innerHTML=
     `<div class="an-head">`+
@@ -2252,7 +2287,7 @@ function renderAnalysis(dim,keys,colors,mA,mB,P){
     `<div class="an-th an-grid">`+
       `<span></span>`+
       `<span>${dimLabel(dim)}</span>`+
-      `<span class="th-flow">${esc(P.bLabel)} → ${esc(P.aLabel)}</span>`+
+      `<span class="th-flow">TB/ngày · ${esc(P.bLabel)} → ${esc(P.aLabel)}</span>`+
       `<span class="th-badge">Thay đổi</span>`+
       `<span class="th-abs">Chênh lệch</span>`+
     `</div>`+
@@ -2260,7 +2295,7 @@ function renderAnalysis(dim,keys,colors,mA,mB,P){
       `<div class="an-row an-grid">`+
         `<span class="an-dot" style="background:${r.color}"></span>`+
         `<span class="an-name" title="${esc(r.k)}">${esc(r.k)}</span>`+
-        `<span class="an-flow">${money(r.b)} → ${money(r.a)}</span>`+
+        `<span class="an-flow" title="Tổng: ${money(r.rawB)} → ${money(r.rawA)}">${money(r.b)} → ${money(r.a)}</span>`+
         badge(r)+
         `<span class="an-abs">${r.d>0?'+':''}${money(r.d)}</span>`+
       `</div>`).join('')+
