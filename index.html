@@ -983,7 +983,8 @@ footer{
       <div class="sec-title" style="flex-wrap:wrap;gap:8px">
         <span class="sec-dot" style="background:var(--purple)"></span>
         <span id="sec-cmp">So Sánh Cùng Kỳ</span>
-        <div class="cp-wrap" id="cp-cmp"></div>
+        <span class="sec-right" id="sec-cmp-note">Không tính đơn Chờ xử lý</span>
+        <div class="cp-wrap" id="cp-cmp" style="margin-left:14px"></div>
       </div>
       <div class="cmp-grid">
         <div class="cmp-col">
@@ -1085,6 +1086,10 @@ const CACHE_MS = 30 * 1000;
 const ST_DONE='Hoàn thành', ST_DOING='Đang xử lý', ST_WAIT='Chờ xử lý',
       ST_CANCEL='Huỷ',      ST_OTHER='Khác';
 const STATUS_ORDER=[ST_DONE, ST_DOING, ST_WAIT, ST_CANCEL, ST_OTHER];
+// Đơn chờ xử lý chưa phải doanh thu thực hiện nên không đưa vào khối so sánh
+// cùng kỳ: đầu tháng gần như mọi đơn đều đang chờ, để vào sẽ thành "điểm sáng"
+// giả và làm lệch cả phần trăm tăng giảm.
+const CMP_SKIP=new Set([ST_WAIT]);
 const STATUS_STYLE={
   [ST_DONE]  :{tag:'green'},  [ST_DOING] :{tag:'blue'},   [ST_WAIT]  :{tag:'yellow'},
   [ST_CANCEL]:{tag:'red'},    [ST_OTHER] :{tag:'purple'},
@@ -2113,7 +2118,7 @@ function renderWeeklyChart(){
 function renderCompare(){
   const c=cardState('cmp'), dim=c.dim, idx=DIM_IDX[dim];
   const P=comparePeriods();
-  const base=cardRows('cmp', S.RAW.filter(matchNonTime));
+  const base=cardRows('cmp', S.RAW.filter(r=>matchNonTime(r) && !CMP_SKIP.has(r[4])));
   const A=base.filter(P.aTest), B=base.filter(P.bTest);
   const sum=rows=>rows.reduce((s,r)=>s+r[3],0);
   const totA=sum(A), totB=sum(B);
