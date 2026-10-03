@@ -1230,7 +1230,7 @@ function blankState(){
       combo :{dim:'bu',    sel:null},
       month :{dim:'bu',    sel:null},
       week  :{dim:'group', sel:null},
-      cmp   :{dim:'group', sel:null},
+      cmp   :{dim:'bu',    sel:null},
       item  :{dim:'item',  sel:null},
       butbl :{dim:'bu',    sel:null},
     },
@@ -1813,6 +1813,10 @@ const tagColor = (tag,a='C4') => (cssVar('--'+tag)||'#64748b')+a;
    sách sản phẩm rất dài). Không tick gì = lấy tất cả.
 ═══════════════════════════════════════════════════════ */
 const DIMS=[{v:'group',t:'Trạng thái'},{v:'bu',t:'Sàn'},{v:'item',t:'Sản phẩm'}];
+// Card so sánh cùng kỳ không phân tích theo trạng thái: tăng giảm giữa các
+// trạng thái phản ánh tiến độ xử lý đơn chứ không phải kết quả kinh doanh.
+const CARD_DIMS={ cmp:['bu','item'] };
+const dimsFor = card => DIMS.filter(d=>!CARD_DIMS[card] || CARD_DIMS[card].includes(d.v));
 const DIM_IDX={group:4, bu:5, item:1};
 const dimLabel  = d => (DIMS.find(x=>x.v===d)||DIMS[0]).t;
 const dimValues = d => d==='group'?S.ALL_GROUPS : d==='bu'?S.ALL_BUS : S.ALL_SKUS;
@@ -1852,7 +1856,7 @@ function renderPicker(card){
       `<span class="cp-count">${all?'tất cả':c.sel.size+'/'+vals.length}</span>`+
       `<span class="cp-arrow">▾</span></button>`+
     `<div class="cp-panel">`+
-      `<div class="cp-dims">${DIMS.map(d=>
+      `<div class="cp-dims">${dimsFor(card).map(d=>
         `<span class="tag ${d.v===c.dim?'active-blue':''}" onclick="setCardDim('${card}','${d.v}')">${d.t}</span>`).join('')}</div>`+
       `<input class="cp-search" placeholder="🔍 Tìm nhanh…" autocomplete="off" spellcheck="false" oninput="filterCP('${card}')">`+
       `<div class="cp-ctrl">`+
