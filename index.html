@@ -668,6 +668,11 @@ footer{
           </div>
         </div>
       </div>
+      <!-- Tháng (chỉ hiện tháng thực sự có dữ liệu) -->
+      <div class="filter-group" id="fg-month">
+        <div class="filter-label">Tháng</div>
+        <div class="tags" id="f-months"></div>
+      </div>
       <!-- BU (ẩn với sheet không có cột BU) -->
       <div class="filter-group" id="fg-bu">
         <div class="filter-label" id="lbl-bu">Business Unit</div>
@@ -958,8 +963,8 @@ function csvUrlOf(src){
 /* ─── State — MỖI TRANG GIỮ DỮ LIỆU & BỘ LỌC RIÊNG ──── */
 function blankState(){
   return {
-    RAW:[], ALL_SKUS:[], ALL_BUS:[], ALL_GROUPS:[], ALL_DATES:[], ALL_WEEKS:[],
-    selBUs:new Set(), selSKUs:new Set(),
+    RAW:[], ALL_SKUS:[], ALL_BUS:[], ALL_GROUPS:[], ALL_MONTHS:[], ALL_DATES:[], ALL_WEEKS:[],
+    selBUs:new Set(), selSKUs:new Set(), selMonths:new Set(),
     selStatus:'all', weekStatusFilter:'all',
     drStart:null, drEnd:null, cachedAt:0,
     skipped:{noDate:0,noItem:0,empty:0,lostMoney:0},
@@ -1226,6 +1231,9 @@ function deriveConstants(){
   // trạng thái xếp theo thứ tự chuẩn, chỉ giữ những trạng thái thực sự có trong dữ liệu
   const present=new Set(S.RAW.map(r=>r[4]));
   S.ALL_GROUPS=STATUS_ORDER.filter(g=>present.has(g));
+  // tháng có mặt trong dữ liệu, xếp tăng dần
+  S.ALL_MONTHS=[...new Set(S.RAW.map(r=>monthOf(r[2])))].sort((a,b)=>a-b);
+  [...S.selMonths].forEach(m=>{ if(!S.ALL_MONTHS.includes(m)) S.selMonths.delete(m); });
   S.ALL_DATES=[...new Set(S.RAW.map(r=>r[2]))].sort((a,b)=>{
     const[da,ma]=a.split('/').map(Number),[db,mb]=b.split('/').map(Number);
     return (ma*100+da)-(mb*100+db);
@@ -1300,6 +1308,34 @@ function toggleBU(el){
   el.className='tag'+(S.selBUs.has(b)?` active-${c}`:'');
   render();
 }
+
+/* ─── Lọc theo tháng ──────────────────────────────────────
+   Chọn được nhiều tháng cùng lúc. Không chọn tháng nào = tất cả.
+   Tháng và khoảng ngày đều là bộ lọc thời gian nên loại trừ nhau:
+   chọn tháng thì xoá khoảng ngày đang đặt và ngược lại, tránh việc
+   hai bộ lọc chồng nhau ra kết quả rỗng mà không hiểu vì sao. */
+function paintMonthTags(){
+  const box=document.getElementById('f-months');
+  box.innerHTML=[`<span class="tag ${S.selMonths.size?'':'active-blue'}" data-m="all" onclick="toggleMonth(this)">Tất cả</span>`]
+    .concat(S.ALL_MONTHS.map(m=>
+      `<span class="tag ${S.selMonths.has(m)?'active-green':''}" data-m="${m}" onclick="toggleMonth(this)">Tháng ${m}</span>`))
+    .join('');
+  document.getElementById('fg-month').style.display=S.ALL_MONTHS.length>1?'':'none';
+}
+function toggleMonth(el){
+  const v=el.dataset.m;
+  if(v==='all') S.selMonths.clear();
+  else{
+    const m=+v;
+    S.selMonths.has(m)?S.selMonths.delete(m):S.selMonths.add(m);
+  }
+  if(S.selMonths.size){            // đang lọc theo tháng → bỏ khoảng ngày để không chồng nhau
+    S.drStart=null; S.drEnd=null; updateDRLabel();
+    document.querySelectorAll('.dr-preset').forEach(p=>p.classList.toggle('active',p.dataset.p==='all'));
+  }
+  paintMonthTags();
+  render();
+}
 function paintStatusTags(){
   document.querySelectorAll('#f-status .tag').forEach(t=>{
     const st=STATUS_STYLE[t.dataset.v];         // thẻ trạng thái lấy đúng màu của trạng thái đó
@@ -1369,12 +1405,15 @@ function dateStrToObj(dateStr){
   const [d,m]=dateStr.split('/').map(Number);
   return new Date(2026,m-1,d);
 }
+// Ngày trong RAW có dạng "dd/MM" → lấy số tháng
+const monthOf = dateStr => +dateStr.split('/')[1];
 function getFiltered(){
   const gi=curSchema().filterField;      // 4 = trạng thái, 5 = sàn
   return S.RAW.filter(r=>{
     if(!S.selSKUs.has(r[1])) return false;
     if(!S.selBUs.has(r[5]||'—')) return false;
     if(S.selStatus!=='all' && r[gi]!==S.selStatus) return false;
+    if(S.selMonths.size && !S.selMonths.has(monthOf(r[2]))) return false;
     if(S.drStart||S.drEnd){
       const dt=dateStrToObj(r[2]);
       if(S.drStart && dt<S.drStart) return false;
@@ -1414,6 +1453,8 @@ function render(){
   // Footer nói rõ vì sao tổng có thể khác sheet: đang lọc bớt, hoặc có dòng bị bỏ qua
   const sk=S.skipped||{};
   const parts=[`${S.RAW.length} dòng đọc được`];
+  if(S.selMonths.size)
+    parts.push(`lọc tháng ${[...S.selMonths].sort((a,b)=>a-b).join(', ')}`);
   if(S.selSKUs.size<S.ALL_SKUS.length)
     parts.push(`⚠ đang lọc ${S.selSKUs.size}/${S.ALL_SKUS.length} ${curSchema().itemShort}`);
   if(S.decSep)   parts.push(`dấu thập phân "${S.decSep}"`);
@@ -1510,6 +1551,7 @@ function renderWeeklyChart(){
   S.RAW.forEach(r=>{
     if(!S.selSKUs.has(r[1])||!S.selBUs.has(r[5]||'—')) return;
     if(applySel && r[5]!==S.selStatus) return;
+    if(S.selMonths.size && !S.selMonths.has(monthOf(r[2]))) return;
     if(S.drStart||S.drEnd){const dt=dateStrToObj(r[2]);if(S.drStart&&dt<S.drStart)return;if(S.drEnd&&dt>S.drEnd)return;}
     const w=getWeekLabel(r[2]);
     if(byWeek[w]) byWeek[w].push(r);
@@ -1751,6 +1793,7 @@ function applyDR(){
   S.drStart=pickStart||null;
   // Chỉ chọn 1 ngày (chưa có ngày kết thúc) → lọc đúng riêng ngày đó
   S.drEnd=pickEnd || (pickStart ? new Date(pickStart) : null);
+  if(S.drStart||S.drEnd){ S.selMonths.clear(); paintMonthTags(); }  // nhường quyền cho khoảng ngày
   updateDRLabel(); closeDRPanel(); render();
 }
 function cancelDR(){ closeDRPanel(); }
@@ -1962,6 +2005,7 @@ function syncFilterUI(){
 
   paintStatusTags();
   paintWeekTags();
+  paintMonthTags();
   updateDRLabel();
   document.querySelectorAll('.dr-preset').forEach(p=>
     p.classList.toggle('active', p.dataset.p==='all' && !S.drStart && !S.drEnd));
