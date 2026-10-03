@@ -383,6 +383,38 @@ header{
   .cmp-delta{flex-direction:row;gap:10px;min-width:0}
 }
 
+/* ── Phân tích cùng kỳ ── */
+.an-box{margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
+.an-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+.an-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.9px}
+.an-sum{font-size:10px;font-family:var(--mono);color:var(--muted2);margin-left:auto}
+.an-lead{font-size:11px;font-family:var(--mono);color:var(--muted);margin-bottom:10px;line-height:1.6}
+.an-lead b{font-weight:700}
+.an-row{
+  display:grid;grid-template-columns:auto minmax(0,1fr) auto auto auto;
+  align-items:center;gap:10px;padding:7px 10px;border-radius:8px;
+  background:var(--bg2);border:1px solid var(--border);margin-bottom:4px;
+}
+.an-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.an-name{font-size:11px;font-family:var(--mono);color:var(--text);font-weight:600;
+         overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.an-flow{font-size:10px;font-family:var(--mono);color:var(--muted2);white-space:nowrap}
+.an-abs{font-size:10px;font-family:var(--mono);color:var(--muted);white-space:nowrap;min-width:72px;text-align:right}
+.an-badge{
+  font-size:10px;font-family:var(--mono);font-weight:700;white-space:nowrap;
+  padding:2px 8px;border-radius:20px;min-width:74px;text-align:center;
+}
+.an-up  {background:var(--green-l); color:var(--green)}
+.an-down{background:var(--red-l);   color:var(--red)}
+.an-flat{background:var(--bg3);     color:var(--muted)}
+.an-new {background:var(--blue-l);  color:var(--blue)}
+.an-stop{background:var(--yellow-l);color:var(--yellow)}
+.an-more{font-size:10px;font-family:var(--mono);color:var(--muted2);padding:6px 10px}
+@media(max-width:900px){
+  .an-row{grid-template-columns:auto minmax(0,1fr) auto;row-gap:4px}
+  .an-flow{grid-column:2/-1}
+}
+
 /* ── SKU bars ── */
 .sku-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
 .sku-name{
@@ -939,6 +971,7 @@ footer{
           <div class="cmp-chart"><canvas id="chart-cmp-b"></canvas></div>
         </div>
       </div>
+      <div class="an-box" id="cmp-analysis"></div>
     </div>
 
     <!-- Bottom row -->
@@ -1152,13 +1185,16 @@ function blankState(){
     selStatus:'all',
     // Mỗi card nhớ riêng: tách theo chiều nào, và tick những giá trị nào
     // (tập rỗng = lấy tất cả). Xem CARD_IDS / DIMS bên dưới.
+    // sel = null nghĩa là CHƯA lọc (lấy tất cả); sel = Set nghĩa là danh
+    // sách cụ thể, kể cả Set rỗng (bỏ chọn hết). Không được gộp hai trạng
+    // thái này làm một, nếu không "Bỏ chọn" sẽ bị hiểu thành "chọn tất cả".
     cards:{
-      combo :{dim:'bu',    sel:new Set()},
-      month :{dim:'bu',    sel:new Set()},
-      week  :{dim:'group', sel:new Set()},
-      cmp   :{dim:'group', sel:new Set()},
-      item  :{dim:'item',  sel:new Set()},
-      butbl :{dim:'bu',    sel:new Set()},
+      combo :{dim:'bu',    sel:null},
+      month :{dim:'bu',    sel:null},
+      week  :{dim:'group', sel:null},
+      cmp   :{dim:'group', sel:null},
+      item  :{dim:'item',  sel:null},
+      butbl :{dim:'bu',    sel:null},
     },
     drStart:null, drEnd:null, cachedAt:0,
     skipped:{noDate:0,noItem:0,empty:0,lostMoney:0},
@@ -1187,13 +1223,15 @@ const fmt = n =>
 const fmtFull = n => n.toLocaleString('vi-VN')+'đ';
 
 // USD: con số nhỏ hơn VNĐ ~25.000 lần nên ngưỡng rút gọn phải khác
+// Dấu trừ đặt TRƯỚC ký hiệu tiền: -$40.00 chứ không phải $-40.00
 const fmtUSD = n => {
-  const a=Math.abs(n);
-  return a>=1_000_000 ? '$'+(n/1_000_000).toFixed(2)+'M'
-       : a>=10_000    ? '$'+(n/1_000).toFixed(1)+'K'
-       : '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const a=Math.abs(n), sg=n<0?'-':'';
+  return a>=1_000_000 ? sg+'$'+(a/1_000_000).toFixed(2)+'M'
+       : a>=10_000    ? sg+'$'+(a/1_000).toFixed(1)+'K'
+       : sg+'$'+a.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 };
-const fmtUSDFull = n => '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtUSDFull = n =>
+  (n<0?'-':'')+'$'+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 
 // Tiền theo đơn vị của trang đang xem
 function money(n){     return curSchema().currency==='USD' ? fmtUSD(n)     : fmt(n);     }
@@ -1721,18 +1759,19 @@ const DIMS=[{v:'group',t:'Trạng thái'},{v:'bu',t:'Sàn'},{v:'item',t:'Sản p
 const DIM_IDX={group:4, bu:5, item:1};
 const dimLabel  = d => (DIMS.find(x=>x.v===d)||DIMS[0]).t;
 const dimValues = d => d==='group'?S.ALL_GROUPS : d==='bu'?S.ALL_BUS : S.ALL_SKUS;
-const cardState = c => (S.cards&&S.cards[c]) || {dim:'bu',sel:new Set()};
+const cardState = c => (S.cards&&S.cards[c]) || {dim:'bu',sel:null};
 
 // Lọc các dòng theo giá trị card đang tick
 function cardRows(card, rows){
   const c=cardState(card);
-  if(!c.sel.size) return rows;
+  if(c.sel===null) return rows;          // chưa lọc → lấy tất cả
   const i=DIM_IDX[c.dim];
   return rows.filter(r=>c.sel.has(r[i]||'—'));
 }
 // Danh sách nhãn của card, giữ thứ tự chuẩn của từng chiều
 function cardKeys(card, rows){
   const c=cardState(card), i=DIM_IDX[c.dim];
+  if(c.sel && !c.sel.size) return [];    // bỏ chọn hết → không hiện gì
   const present=new Set(rows.map(r=>r[i]||'—'));
   const order=dimValues(c.dim);
   return order.filter(v=>present.has(v))
@@ -1749,7 +1788,7 @@ function renderPicker(card){
   const host=document.getElementById('cp-'+card);
   if(!host) return;
   const c=cardState(card), vals=dimValues(c.dim);
-  const all=!c.sel.size;
+  const all=c.sel===null;
   host.innerHTML=
     `<button class="cp-btn" onclick="toggleCP('${card}')">`+
       `<span class="cp-dim">${dimLabel(c.dim)}</span>`+
@@ -1783,7 +1822,7 @@ document.addEventListener('mousedown',e=>{
 function setCardDim(card,dim){
   const c=cardState(card);
   if(c.dim===dim) return;
-  c.dim=dim; c.sel.clear();        // đổi chiều thì lựa chọn cũ không còn ý nghĩa
+  c.dim=dim; c.sel=null;           // đổi chiều thì lựa chọn cũ không còn ý nghĩa
   renderPicker(card);
   document.getElementById('cp-'+card).classList.add('on');
   render();
@@ -1806,9 +1845,9 @@ const cpVisible = card =>
 
 function cpSet(card,items,on){
   const c=cardState(card), vals=dimValues(c.dim);
-  if(!c.sel.size) vals.forEach(v=>c.sel.add(v));   // từ "tất cả" chuyển sang danh sách cụ thể
+  if(c.sel===null) c.sel=new Set(vals);            // từ "tất cả" chuyển sang danh sách cụ thể
   items.forEach(el=>{ on?c.sel.add(el.dataset.v):c.sel.delete(el.dataset.v); });
-  if(c.sel.size===vals.length) c.sel.clear();      // tick hết = tất cả
+  if(c.sel.size===vals.length) c.sel=null;         // tick lại đủ hết → quay về "tất cả"
   const q=document.getElementById('cp-'+card).querySelector('.cp-search').value;
   renderPicker(card);
   const w=document.getElementById('cp-'+card);
@@ -2068,6 +2107,68 @@ function renderCompare(){
 
   drawDonut('chart-cmp-a','A',keys,keys.map(k=>mA[k]||0),colors,totA);
   drawDonut('chart-cmp-b','B',keys,keys.map(k=>mB[k]||0),colors,totB);
+  renderAnalysis(dim,keys,colors,mA,mB,P);
+}
+
+/* Bảng phân tích từng mục: kỳ trước → kỳ này, mức tăng giảm theo % và theo
+   số tiền. Mục mới phát sinh hoặc đã ngừng được đánh dấu riêng vì chia cho
+   0 không ra phần trăm có nghĩa. */
+function renderAnalysis(dim,keys,colors,mA,mB,P){
+  const box=document.getElementById('cmp-analysis');
+  if(!box) return;
+  const LIMIT = dim==='item' ? 8 : 20;
+
+  const rows=keys.map((k,i)=>{
+    const a=mA[k]||0, b=mB[k]||0, d=a-b;
+    let kind, pct=null;
+    if(b===0 && a>0)      kind='new';
+    else if(a===0 && b>0) kind='stop';
+    else if(Math.abs(d)<0.005) kind='flat';
+    else { kind=d>0?'up':'down'; pct=(d/Math.abs(b))*100; }
+    return {k,a,b,d,pct,kind,color:colors[i]};
+  }).sort((x,y)=>Math.abs(y.d)-Math.abs(x.d));
+
+  if(!rows.length){
+    box.innerHTML=`<div class="an-head"><span class="an-title">Phân tích theo ${dimLabel(dim)}</span></div>`+
+                  `<div class="an-lead">Không có dữ liệu để so sánh.</div>`;
+    return;
+  }
+
+  const n=t=>rows.filter(r=>r.kind===t).length;
+  const fPct=r=>(r.pct>0?'+':'')+r.pct.toFixed(1).replace('.',',')+'%';
+  const badge=r=>
+     r.kind==='new'  ? `<span class="an-badge an-new">MỚI</span>`
+   : r.kind==='stop' ? `<span class="an-badge an-stop">NGỪNG</span>`
+   : r.kind==='flat' ? `<span class="an-badge an-flat">=</span>`
+   : `<span class="an-badge an-${r.kind}">${r.kind==='up'?'▲':'▼'} ${fPct(r)}</span>`;
+
+  // câu nhận xét: mục tăng mạnh nhất và giảm sâu nhất tính theo số tiền
+  const up  =rows.filter(r=>r.d>0)[0];
+  const down=rows.filter(r=>r.d<0)[0];
+  const lead=[];
+  if(up)   lead.push(`Kéo tăng mạnh nhất: <b>${esc(up.k)}</b> ${up.kind==='new'?'(mới)':fPct(up)} — thêm ${money(up.d)}`);
+  if(down) lead.push(`Giảm sâu nhất: <b>${esc(down.k)}</b> ${down.kind==='stop'?'(ngừng)':fPct(down)} — mất ${money(Math.abs(down.d))}`);
+  if(!up && !down) lead.push('Không có thay đổi đáng kể giữa hai kỳ.');
+
+  const summary=[n('up')&&`${n('up')} tăng`, n('down')&&`${n('down')} giảm`,
+                 n('new')&&`${n('new')} mới`, n('stop')&&`${n('stop')} ngừng`]
+                .filter(Boolean).join(' · ');
+
+  box.innerHTML=
+    `<div class="an-head">`+
+      `<span class="an-title">Phân tích theo ${dimLabel(dim)}</span>`+
+      `<span class="an-sum">${esc(P.bLabel)} → ${esc(P.aLabel)} · ${summary||'không đổi'}</span>`+
+    `</div>`+
+    `<div class="an-lead">${lead.join('<br>')}</div>`+
+    rows.slice(0,LIMIT).map(r=>
+      `<div class="an-row">`+
+        `<span class="an-dot" style="background:${r.color}"></span>`+
+        `<span class="an-name" title="${esc(r.k)}">${esc(r.k)}</span>`+
+        `<span class="an-flow">${money(r.b)} → ${money(r.a)}</span>`+
+        badge(r)+
+        `<span class="an-abs">${r.d>0?'+':''}${money(r.d)}</span>`+
+      `</div>`).join('')+
+    (rows.length>LIMIT?`<div class="an-more">… và ${rows.length-LIMIT} mục khác, chênh lệch nhỏ hơn</div>`:'');
 }
 
 function drawDonut(canvasId,slot,labels,data,colors,total){
