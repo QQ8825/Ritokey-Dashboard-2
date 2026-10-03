@@ -425,6 +425,25 @@ header{
   .an-flow{grid-column:2/-1;text-align:left}
 }
 
+/* ── Khối nhận xét cùng kỳ ── */
+.an-note{
+  display:flex;gap:11px;align-items:flex-start;
+  padding:11px 14px;margin-bottom:13px;border-radius:10px;
+  background:var(--bg2);border:1px solid var(--border);border-left:3px solid var(--muted2);
+}
+.an-note.up  {border-left-color:var(--green)}
+.an-note.down{border-left-color:var(--red)}
+.an-note-ico{font-size:14px;line-height:1.6;flex-shrink:0}
+.an-note-body{min-width:0}
+.an-note-title{
+  font-size:9px;font-family:var(--mono);color:var(--muted2);
+  text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:4px;
+}
+.an-note-text{font-size:11.5px;color:var(--text);line-height:1.8}
+.an-note-text b{font-weight:700}
+.an-note-text .up{color:var(--green);font-weight:700}
+.an-note-text .down{color:var(--red);font-weight:700}
+
 /* ── SKU bars ── */
 .sku-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
 .sku-name{
@@ -2120,6 +2139,66 @@ function renderCompare(){
   renderAnalysis(dim,keys,colors,mA,mB,P);
 }
 
+/* Dựng đoạn nhận xét từ chính số liệu: tổng quan, mức độ tập trung của
+   thay đổi, độ lan rộng, rồi các mục mới phát sinh và mục đã ngừng.    */
+function buildNote(dim,rows,totA,totB,P){
+  const lab=dimLabel(dim).toLowerCase();
+  const pc = v => v.toFixed(1).replace('.',',')+'%';
+  const diff=totA-totB;
+  const dir = diff>0.005?'up' : diff<-0.005?'down' : 'flat';
+  const ico = dir==='up'?'📈' : dir==='down'?'📉' : '➖';
+  const s=[];
+
+  if(!totA && !totB) return {dir:'flat',ico:'➖',html:'Không có dữ liệu ở cả hai kỳ để so sánh.'};
+
+  // 1 · tổng quan
+  if(!totB){
+    s.push(`<b>${esc(P.aLabel)}</b> đạt <b>${moneyFull(totA)}</b>. `
+         + `Chưa có dữ liệu ở ${esc(P.bLabel)} nên chưa so sánh được; các con số dưới đây đều là phát sinh mới.`);
+  }else{
+    const word = dir==='up'?'<span class="up">tăng</span>' : dir==='down'?'<span class="down">giảm</span>' : 'đi ngang';
+    const pct  = pc(Math.abs(diff/Math.abs(totB)*100));
+    s.push(`<b>${esc(P.aLabel)}</b> đạt <b>${moneyFull(totA)}</b>, ${word}`
+         + (dir==='flat'?'':` <b>${pct}</b> (${diff>0?'+':'−'}${money(Math.abs(diff))})`)
+         + ` so với ${esc(P.bLabel)} — ${moneyFull(totB)}.`);
+  }
+
+  const ups=rows.filter(r=>r.d>0), downs=rows.filter(r=>r.d<0);
+  const sumUp=ups.reduce((a,r)=>a+r.d,0), sumDown=downs.reduce((a,r)=>a+Math.abs(r.d),0);
+
+  // 2 · thay đổi dồn vào đâu  (rows đã sắp theo mức chênh lệch giảm dần)
+  if(totB && dir==='up' && ups.length){
+    const t=ups[0], share=sumUp?Math.abs(t.d)/sumUp*100:0;
+    s.push(`Mức tăng chủ yếu đến từ <b>${esc(t.k)}</b> (+${money(t.d)}, chiếm <b>${pc(share)}</b> tổng phần tăng)`
+         + (ups.length>1?`, cùng ${ups.length-1} ${lab} khác.`:'.'));
+  }
+  if(dir==='down' && downs.length){
+    const t=downs[0], share=sumDown?Math.abs(t.d)/sumDown*100:0;
+    s.push(`Mức giảm tập trung ở <b>${esc(t.k)}</b> (−${money(Math.abs(t.d))}, chiếm <b>${pc(share)}</b> tổng phần giảm)`
+         + (downs.length>1?`, cùng ${downs.length-1} ${lab} khác.`:'.'));
+  }
+  // lực kéo ngược chiều, nếu đáng kể
+  if(dir==='up' && downs.length && sumDown>sumUp*0.25)
+    s.push(`Bù lại, ${downs.length} ${lab} sụt <span class="down">−${money(sumDown)}</span>, dẫn đầu là <b>${esc(downs[0].k)}</b>.`);
+  if(dir==='down' && ups.length && sumUp>sumDown*0.25)
+    s.push(`Điểm sáng: ${ups.length} ${lab} vẫn <span class="up">+${money(sumUp)}</span>, dẫn đầu là <b>${esc(ups[0].k)}</b>.`);
+
+  // 3 · lan rộng hay dồn cục
+  const moved=ups.length+downs.length;
+  if(moved>=3){
+    if(downs.length>=ups.length*2)      s.push(`Đà giảm diễn ra trên diện rộng: <b>${downs.length}/${moved}</b> ${lab} có doanh thu đi xuống.`);
+    else if(ups.length>=downs.length*2) s.push(`Tăng trưởng lan khá đều: <b>${ups.length}/${moved}</b> ${lab} tăng doanh thu.`);
+  }
+
+  // 4 · mới và ngừng
+  const list=a=>a.slice(0,3).map(r=>`<b>${esc(r.k)}</b>`).join(', ')+(a.length>3?` và ${a.length-3} mục nữa`:'');
+  const news=rows.filter(r=>r.kind==='new'), stops=rows.filter(r=>r.kind==='stop');
+  if(news.length && totB) s.push(`${news.length} ${lab} mới phát sinh doanh thu: ${list(news)} (${money(news.reduce((a,r)=>a+r.a,0))}).`);
+  if(stops.length) s.push(`${stops.length} ${lab} không còn doanh thu ở ${esc(P.aLabel)}: ${list(stops)} — mất ${money(stops.reduce((a,r)=>a+r.b,0))}.`);
+
+  return {dir,ico,html:s.join(' ')};
+}
+
 /* Bảng phân tích từng mục: kỳ trước → kỳ này, mức tăng giảm theo % và theo
    số tiền. Mục mới phát sinh hoặc đã ngừng được đánh dấu riêng vì chia cho
    0 không ra phần trăm có nghĩa. */
@@ -2152,24 +2231,24 @@ function renderAnalysis(dim,keys,colors,mA,mB,P){
    : r.kind==='flat' ? `<span class="an-badge an-flat">=</span>`
    : `<span class="an-badge an-${r.kind}">${r.kind==='up'?'▲':'▼'} ${fPct(r)}</span>`;
 
-  // câu nhận xét: mục tăng mạnh nhất và giảm sâu nhất tính theo số tiền
-  const up  =rows.filter(r=>r.d>0)[0];
-  const down=rows.filter(r=>r.d<0)[0];
-  const lead=[];
-  if(up)   lead.push(`Kéo tăng mạnh nhất: <b>${esc(up.k)}</b> ${up.kind==='new'?'(mới)':fPct(up)} — thêm ${money(up.d)}`);
-  if(down) lead.push(`Giảm sâu nhất: <b>${esc(down.k)}</b> ${down.kind==='stop'?'(ngừng)':fPct(down)} — mất ${money(Math.abs(down.d))}`);
-  if(!up && !down) lead.push('Không có thay đổi đáng kể giữa hai kỳ.');
-
   const summary=[n('up')&&`${n('up')} tăng`, n('down')&&`${n('down')} giảm`,
                  n('new')&&`${n('new')} mới`, n('stop')&&`${n('stop')} ngừng`]
                 .filter(Boolean).join(' · ');
+
+  const totA=rows.reduce((a,r)=>a+r.a,0), totB=rows.reduce((a,r)=>a+r.b,0);
+  const note=buildNote(dim,rows,totA,totB,P);
 
   box.innerHTML=
     `<div class="an-head">`+
       `<span class="an-title">Phân tích theo ${dimLabel(dim)}</span>`+
       `<span class="an-sum">${esc(P.bLabel)} → ${esc(P.aLabel)} · ${summary||'không đổi'}</span>`+
     `</div>`+
-    `<div class="an-lead">${lead.join('<br>')}</div>`+
+    `<div class="an-note ${note.dir}">`+
+      `<span class="an-note-ico">${note.ico}</span>`+
+      `<span class="an-note-body">`+
+        `<span class="an-note-title">Nhận xét</span>`+
+        `<div class="an-note-text">${note.html}</div>`+
+      `</span></div>`+
     `<div class="an-th an-grid">`+
       `<span></span>`+
       `<span>${dimLabel(dim)}</span>`+
