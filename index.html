@@ -7,6 +7,13 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet"/>
+<script>
+/* Chạy trước khi trang vẽ để không bị chớp nền sáng rồi mới đổi sang tối */
+try{
+  const t=localStorage.getItem('rk_theme');
+  if(t==='dark'||t==='light') document.documentElement.setAttribute('data-theme',t);
+}catch(e){}
+</script>
 <style>
 :root {
   --bg:       #f0f4fb;
@@ -32,6 +39,56 @@
   --mono:     'JetBrains Mono', monospace;
   --shadow:   0 1px 6px rgba(30,45,77,.07);
   --shadow-md:0 4px 16px rgba(30,45,77,.10);
+  --glow-op:  1;          /* độ đậm vòng trang trí trên thẻ KPI */
+  color-scheme: light;
+}
+
+/* ══ GIAO DIỆN TỐI ════════════════════════════════════════
+   Tông navy sâu cho ăn khớp với màn đăng nhập. Các màu nhấn
+   được nâng độ sáng vì màu gốc quá tối khi đặt trên nền tối.
+   Khai báo 2 lần: theo cài đặt hệ thống, và theo lựa chọn
+   thủ công — để nút bật tắt luôn thắng cài đặt hệ thống.   */
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:       #0b1526;
+    --bg1:      #122034;
+    --bg2:      #16263d;
+    --bg3:      #1c2f4b;
+    --border:   #233852;
+    --border2:  #354e70;
+    --green:    #34d399;  --green-l:  #0e3a30;
+    --blue:     #60a5fa;  --blue-l:   #15314f;
+    --yellow:   #fbbf24;  --yellow-l: #40300e;
+    --red:      #f87171;  --red-l:    #45201f;
+    --purple:   #a78bfa;  --purple-l: #2b2252;
+    --text:     #e6edf8;
+    --muted:    #93a4bd;
+    --muted2:   #6b7c96;
+    --shadow:   0 1px 6px rgba(0,0,0,.40);
+    --shadow-md:0 6px 20px rgba(0,0,0,.55);
+    --glow-op:  .45;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:       #0b1526;
+  --bg1:      #122034;
+  --bg2:      #16263d;
+  --bg3:      #1c2f4b;
+  --border:   #233852;
+  --border2:  #354e70;
+  --green:    #34d399;  --green-l:  #0e3a30;
+  --blue:     #60a5fa;  --blue-l:   #15314f;
+  --yellow:   #fbbf24;  --yellow-l: #40300e;
+  --red:      #f87171;  --red-l:    #45201f;
+  --purple:   #a78bfa;  --purple-l: #2b2252;
+  --text:     #e6edf8;
+  --muted:    #93a4bd;
+  --muted2:   #6b7c96;
+  --shadow:   0 1px 6px rgba(0,0,0,.40);
+  --shadow-md:0 6px 20px rgba(0,0,0,.55);
+  --glow-op:  .45;
+  color-scheme: dark;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html,body{min-height:100vh;background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px}
@@ -96,6 +153,13 @@ header{
 #auto-badge.off{background:var(--bg3);border-color:var(--border2);color:var(--muted)}
 @keyframes live-pulse{0%,100%{opacity:1}50%{opacity:.35}}
 #auto-badge.on .live-dot{animation:live-pulse 1.6s ease-in-out infinite;display:inline-block}
+#btn-theme{
+  width:32px;height:30px;border-radius:20px;font-size:13px;line-height:1;
+  border:1.5px solid var(--border2);background:var(--bg1);
+  cursor:pointer;transition:all .15s;box-shadow:var(--shadow);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+#btn-theme:hover{border-color:var(--blue);background:var(--blue-l)}
 
 /* ── Sidebar chọn trang ── */
 .shell{display:flex;min-height:100vh;align-items:stretch}
@@ -220,6 +284,7 @@ header{
 .kpi-glow{
   position:absolute;right:-16px;top:-16px;
   width:90px;height:90px;border-radius:50%;pointer-events:none;
+  opacity:var(--glow-op);
 }
 .k-green .kpi-glow{background:var(--green-l)}
 .k-blue  .kpi-glow{background:var(--blue-l)}
@@ -628,6 +693,7 @@ footer{
     <div class="header-right">
       <button id="btn-refresh" onclick="refreshNow()">⟳ Làm mới</button>
       <button id="auto-badge" onclick="toggleAuto()" title="Bật/tắt tự động đọc lại dữ liệu">—</button>
+      <button id="btn-theme" onclick="toggleTheme()" title="Đổi giao diện sáng/tối">🌙</button>
       <div class="badge badge-green">📦 <span id="h-orders">—</span> <span id="h-unit">đơn</span></div>
       <div class="badge badge-blue"><span id="h-rev">—</span></div>
     </div>
@@ -911,16 +977,16 @@ const ST_DONE='Hoàn thành', ST_DOING='Đang xử lý', ST_WAIT='Chờ xử lý
       ST_CANCEL='Huỷ',      ST_OTHER='Khác';
 const STATUS_ORDER=[ST_DONE, ST_DOING, ST_WAIT, ST_CANCEL, ST_OTHER];
 const STATUS_STYLE={
-  [ST_DONE]  :{tag:'green', color:'rgba(5,150,105,.78)'},
-  [ST_DOING] :{tag:'blue',  color:'rgba(37,99,235,.70)'},
-  [ST_WAIT]  :{tag:'yellow',color:'rgba(217,119,6,.70)'},
-  [ST_CANCEL]:{tag:'red',   color:'rgba(220,38,38,.78)'},
-  [ST_OTHER] :{tag:'purple',color:'rgba(124,58,237,.55)'},
+  [ST_DONE]  :{tag:'green'},  [ST_DOING] :{tag:'blue'},   [ST_WAIT]  :{tag:'yellow'},
+  [ST_CANCEL]:{tag:'red'},    [ST_OTHER] :{tag:'purple'},
 };
 // Màu của các sàn — gán theo thứ tự xuất hiện nên thêm sàn mới vẫn có màu
-const SAN_COLORS=['#2563eb','#7c3aed','#059669','#d97706','#dc2626','#0891b2','#db2777'];
+// Hai bộ màu sàn: bản tối được nâng độ sáng vì màu gốc chìm trên nền navy
+const SAN_COLORS_LIGHT=['#2563eb','#7c3aed','#059669','#d97706','#dc2626','#0891b2','#db2777'];
+const SAN_COLORS_DARK =['#60a5fa','#a78bfa','#34d399','#fbbf24','#f87171','#22d3ee','#f472b6'];
+const sanColors = () => isDark()?SAN_COLORS_DARK:SAN_COLORS_LIGHT;
 const SAN_TAGS  =['blue','purple','green','yellow','red'];
-const buColor = name => SAN_COLORS[Math.max(0,S.ALL_BUS.indexOf(name))%SAN_COLORS.length];
+const buColor = name => { const P=sanColors(); return P[Math.max(0,S.ALL_BUS.indexOf(name))%P.length]; };
 const buTag   = name => SAN_TAGS[Math.max(0,S.ALL_BUS.indexOf(name))%SAN_TAGS.length];
 
 /* ═══════════════════════════════════════════════════════
@@ -977,7 +1043,7 @@ const SCHEMAS = {
     },
     seriesOf(){
       return S.ALL_GROUPS.map(g=>({
-        v:g, t:g, tag:STATUS_STYLE[g].tag, color:STATUS_STYLE[g].color,
+        v:g, t:g, tag:STATUS_STYLE[g].tag, color:tagColor(STATUS_STYLE[g].tag),
         match:r=>r[4]===g,
       }));
     },
@@ -1059,7 +1125,9 @@ const curSrc = () => SOURCES.find(s=>s.id===curId);
 
 let chartCombo=null, chartWeekly=null, chartCmpA=null, chartCmpB=null, chartMonth=null;
 
-const SKU_PALETTE=['#2563eb','#059669','#d97706','#dc2626','#7c3aed','#ea580c','#0891b2','#db2777','#65a30d','#0284c7'];
+const SKU_PALETTE_LIGHT=['#2563eb','#059669','#d97706','#dc2626','#7c3aed','#ea580c','#0891b2','#db2777','#65a30d','#0284c7'];
+const SKU_PALETTE_DARK =['#60a5fa','#34d399','#fbbf24','#f87171','#a78bfa','#fb923c','#22d3ee','#f472b6','#a3e635','#38bdf8'];
+const skuPalette = () => isDark()?SKU_PALETTE_DARK:SKU_PALETTE_LIGHT;
 
 /* ─── Helpers ─────────────────────────────────────────── */
 // ✅ FIX: hiển thị đúng đơn vị — fmt đã xử lý chuẩn cho số lớn
@@ -1542,6 +1610,7 @@ const KPI_SLOTS=[
 ];
 
 function render(){
+  refreshChartTheme();          // màu biểu đồ bám theo giao diện đang dùng
   const sc=curSchema();
   const f=getFiltered();
   const rev=f.reduce((s,r)=>s+r[3],0);
@@ -1582,11 +1651,22 @@ function render(){
 }
 
 /* ─── Chart defaults (light theme) ───────────────────── */
-const CHART_DEFAULTS={
-  tickColor:'#64748b',
-  gridColor:'#e2e8f0',
-  fontMono:'JetBrains Mono',
+/* Màu biểu đồ lấy thẳng từ biến CSS nên đổi giao diện là đổi theo,
+   không phải khai báo màu hai lần cho hai chế độ. */
+const CHART_DEFAULTS={tickColor:'#64748b',gridColor:'#e2e8f0',cardBg:'#fff',textColor:'#1e2d4d',fontMono:'JetBrains Mono'};
+const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function refreshChartTheme(){
+  CHART_DEFAULTS.tickColor = cssVar('--muted')  || '#64748b';
+  CHART_DEFAULTS.gridColor = cssVar('--border') || '#e2e8f0';
+  CHART_DEFAULTS.cardBg    = cssVar('--bg1')    || '#ffffff';
+  CHART_DEFAULTS.textColor = cssVar('--text')   || '#1e2d4d';
+}
+const isDark = () => {
+  const t=document.documentElement.getAttribute('data-theme');
+  return t ? t==='dark' : matchMedia('(prefers-color-scheme: dark)').matches;
 };
+// Màu nhấn lấy từ biến CSS + độ trong suốt, nên tự sáng lên ở chế độ tối
+const tagColor = (tag,a='C4') => (cssVar('--'+tag)||'#64748b')+a;
 
 /* ─── Combo chart ─────────────────────────────────────── */
 function renderComboChart(f){
@@ -1625,8 +1705,8 @@ function renderComboChart(f){
       responsive:true,maintainAspectRatio:false,
       plugins:{
         legend:{labels:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:11}}},
-        tooltip:{backgroundColor:'#fff',borderColor:'#dde4f0',borderWidth:1,
-          titleColor:'#64748b',bodyColor:'#1e2d4d',
+        tooltip:{backgroundColor:CHART_DEFAULTS.cardBg,borderColor:CHART_DEFAULTS.gridColor,borderWidth:1,
+          titleColor:CHART_DEFAULTS.tickColor,bodyColor:CHART_DEFAULTS.textColor,
           callbacks:{label:c=>c.dataset.label===sc.lineLabel
             ? c.parsed.y+sc.lineUnit
             : moneyFull(c.parsed.y)}},
@@ -1711,8 +1791,8 @@ function renderMonthChart(){
       plugins:{
         monthTotals:{values:totals},
         legend:{labels:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:11}}},
-        tooltip:{backgroundColor:'#fff',borderColor:'#dde4f0',borderWidth:1,
-          titleColor:'#64748b',bodyColor:'#1e2d4d',
+        tooltip:{backgroundColor:CHART_DEFAULTS.cardBg,borderColor:CHART_DEFAULTS.gridColor,borderWidth:1,
+          titleColor:CHART_DEFAULTS.tickColor,bodyColor:CHART_DEFAULTS.textColor,
           callbacks:{label:c=>c.dataset.label===sc.lineLabel
             ? c.parsed.y+sc.lineUnit : `${c.dataset.label}: ${moneyFull(c.parsed.y)}`}},
       },
@@ -1777,8 +1857,8 @@ function renderWeeklyChart(){
       responsive:true,maintainAspectRatio:false,
       plugins:{
         legend:{labels:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:11}}},
-        tooltip:{backgroundColor:'#fff',borderColor:'#dde4f0',borderWidth:1,
-          titleColor:'#64748b',bodyColor:'#1e2d4d',
+        tooltip:{backgroundColor:CHART_DEFAULTS.cardBg,borderColor:CHART_DEFAULTS.gridColor,borderWidth:1,
+          titleColor:CHART_DEFAULTS.tickColor,bodyColor:CHART_DEFAULTS.textColor,
           callbacks:{label:c=>sc.weekIsMoney?moneyFull(c.parsed.y):c.parsed.y+sc.weekUnit}},
       },
       scales:{
@@ -1808,9 +1888,9 @@ function setCmpDim(el){
 
 // Màu của một lát cắt, tuỳ theo đang tách theo trạng thái / sàn / sản phẩm
 function sliceColor(dim,name,i){
-  if(dim==='group') return (STATUS_STYLE[name]||STATUS_STYLE[ST_OTHER]).color;
+  if(dim==='group') return tagColor((STATUS_STYLE[name]||STATUS_STYLE[ST_OTHER]).tag);
   if(dim==='bu')    return buColor(name)+'CC';
-  return SKU_PALETTE[i%SKU_PALETTE.length]+'CC';
+  const P=skuPalette(); return P[i%P.length]+'CC';
 }
 
 function renderCompare(){
@@ -1873,16 +1953,16 @@ function drawDonut(canvasId,slot,labels,data,colors,total){
     type:'doughnut',
     data:{labels: empty?['Không có dữ liệu']:labels,
           datasets:[{data: empty?[1]:data,
-                     backgroundColor: empty?['#e2e8f0']:colors,
-                     borderColor:'#fff', borderWidth:2}]},
+                     backgroundColor: empty?[CHART_DEFAULTS.gridColor]:colors,
+                     borderColor:CHART_DEFAULTS.cardBg, borderWidth:2}]},
     options:{
       responsive:true, maintainAspectRatio:false, cutout:'58%',
       plugins:{
         legend:{position:'bottom',
           labels:{color:CHART_DEFAULTS.tickColor, boxWidth:9, boxHeight:9, padding:8,
                   font:{family:CHART_DEFAULTS.fontMono,size:9.5}}},
-        tooltip:{enabled:!empty, backgroundColor:'#fff',borderColor:'#dde4f0',borderWidth:1,
-          titleColor:'#64748b',bodyColor:'#1e2d4d',
+        tooltip:{enabled:!empty, backgroundColor:CHART_DEFAULTS.cardBg,borderColor:CHART_DEFAULTS.gridColor,borderWidth:1,
+          titleColor:CHART_DEFAULTS.tickColor,bodyColor:CHART_DEFAULTS.textColor,
           callbacks:{label:c=>{
             const v=c.parsed, pc=total?((v/total)*100).toFixed(1).replace('.',','):'0,0';
             return `${c.label}: ${moneyFull(v)} (${pc}%)`;
@@ -1900,7 +1980,7 @@ function renderSKUBars(f){
   const sorted=Object.values(m).sort((a,b)=>b.rev-a.rev).slice(0,10);
   const maxR=sorted[0]?.rev||1;
   document.getElementById('sku-bars').innerHTML=sorted.map((item,i)=>{
-    const c=SKU_PALETTE[i%SKU_PALETTE.length];
+    const P=skuPalette(); const c=P[i%P.length];
     const pct=Math.max((item.rev/maxR)*100,5);
     return `<div class="sku-row">
       <div class="sku-name" title="${esc(item.sku)}">${esc(item.sku.replace(/_$/,''))}</div>
@@ -2218,6 +2298,33 @@ document.addEventListener('keydown', e=>{
   if(el) el.addEventListener('input', clearError);
 });
 
+/* ─── Giao diện sáng / tối ────────────────────────────────
+   Mặc định đi theo cài đặt hệ thống; bấm nút thì lựa chọn thủ công
+   được ghi nhớ và luôn thắng cài đặt hệ thống.                   */
+const THEME_KEY='rk_theme';
+function applyTheme(t){
+  const root=document.documentElement;
+  if(t==='dark'||t==='light') root.setAttribute('data-theme',t);
+  else root.removeAttribute('data-theme');
+  const b=document.getElementById('btn-theme');
+  if(b){
+    b.textContent = isDark()?'☀️':'🌙';
+    b.title = isDark()?'Chuyển sang giao diện sáng':'Chuyển sang giao diện tối';
+  }
+  refreshChartTheme();
+  if(S && S.RAW && S.RAW.length) render();   // vẽ lại biểu đồ bằng bảng màu mới
+}
+function toggleTheme(){
+  const next=isDark()?'light':'dark';
+  try{ localStorage.setItem(THEME_KEY,next); }catch(e){}
+  applyTheme(next);
+}
+// chưa chọn thủ công thì bám theo hệ thống khi hệ thống đổi
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{
+  let saved=null; try{ saved=localStorage.getItem(THEME_KEY); }catch(e){}
+  if(saved!=='dark'&&saved!=='light') applyTheme(null);
+});
+
 /* ─── Tự động đọc lại dữ liệu ─────────────────────────────
    Đếm ngược AUTO_SEC giây rồi tải lại. Dừng đếm khi đang tải
    hoặc khi tab bị ẩn, để không bắn request vô ích ra Google. */
@@ -2324,6 +2431,7 @@ function switchPage(id){
 }
 
 /* ─── Boot ────────────────────────────────────────────── */
+(function(){ let t=null; try{ t=localStorage.getItem(THEME_KEY); }catch(e){} applyTheme(t); })();
 renderNav();
 syncFilterUI();
 if(checkSession()){
