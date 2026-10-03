@@ -307,6 +307,50 @@ header{
 .sec-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
 .sec-right{margin-left:auto;font-size:10px;color:var(--muted2);font-family:var(--mono);font-weight:400;text-transform:none}
 
+/* ── Bộ chọn trên từng card ── */
+.cp-wrap{position:relative;margin-left:auto}
+.cp-btn{
+  display:flex;align-items:center;gap:7px;white-space:nowrap;
+  padding:4px 11px;border-radius:20px;cursor:pointer;
+  border:1.5px solid var(--border2);background:var(--bg1);
+  font-family:var(--mono);font-size:10.5px;color:var(--text);
+  transition:all .15s;box-shadow:var(--shadow);text-transform:none;
+}
+.cp-btn:hover{border-color:var(--blue);background:var(--blue-l)}
+.cp-btn .cp-dim{font-weight:700;color:var(--blue)}
+.cp-btn .cp-count{color:var(--muted)}
+.cp-btn .cp-arrow{color:var(--muted2);font-size:9px}
+.cp-wrap.on .cp-btn{border-color:var(--blue);background:var(--blue-l)}
+.cp-panel{
+  position:absolute;top:calc(100% + 6px);right:0;z-index:400;display:none;
+  background:var(--bg1);border:1px solid var(--border);border-radius:12px;
+  padding:12px;width:316px;box-shadow:var(--shadow-md);
+}
+.cp-wrap.on .cp-panel{display:block}
+.cp-dims{display:flex;gap:5px;margin-bottom:9px;padding-bottom:9px;border-bottom:1px solid var(--border)}
+.cp-dims .tag{flex:1;text-align:center}
+.cp-search{
+  width:100%;padding:7px 10px;margin-bottom:8px;
+  border:1.5px solid var(--border);border-radius:8px;background:var(--bg2);
+  font-family:var(--mono);font-size:11px;color:var(--text);outline:none;
+}
+.cp-search::placeholder{color:var(--muted2)}
+.cp-search:focus{border-color:var(--blue);background:var(--bg1)}
+.cp-ctrl{display:flex;gap:12px;align-items:center;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.cp-ctrl span{font-size:10px;font-family:var(--mono);cursor:pointer;text-decoration:underline}
+.cp-ctrl .all{color:var(--blue)}
+.cp-ctrl .none{color:var(--red)}
+.cp-ctrl .found{margin-left:auto;color:var(--muted2);text-decoration:none;cursor:default}
+.cp-list{max-height:216px;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
+.cp-item{
+  display:flex;align-items:center;gap:7px;padding:5px 7px;border-radius:6px;
+  cursor:pointer;font-size:10px;font-family:var(--mono);color:var(--muted);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.cp-item input{accent-color:var(--blue);width:12px;height:12px;flex-shrink:0}
+.cp-item.checked{color:var(--blue);background:var(--blue-l)}
+.cp-empty{padding:14px 6px;text-align:center;font-size:10px;font-family:var(--mono);color:var(--muted2)}
+
 /* ── Chart containers ── */
 .chart-wrap{position:relative;height:210px}
 
@@ -842,7 +886,8 @@ footer{
       <div class="sec-title">
         <span class="sec-dot" style="background:var(--green)"></span>
         <span id="sec-combo">Giá Vốn &amp; Số Đơn Theo Ngày</span>
-        <span class="sec-right" id="sec-combo-hint">Cột = Giá vốn · Đường = Số đơn</span>
+        <span class="sec-right" id="sec-combo-hint"></span>
+        <div class="cp-wrap" id="cp-combo"></div>
       </div>
       <div class="chart-wrap"><canvas id="chart-combo"></canvas></div>
     </div>
@@ -852,7 +897,8 @@ footer{
       <div class="sec-title">
         <span class="sec-dot" style="background:var(--blue)"></span>
         <span id="sec-month">Doanh Thu Theo Tháng &amp; Sàn</span>
-        <span class="sec-right" id="sec-month-hint">Tổng cả kỳ · không phụ thuộc bộ lọc tháng</span>
+        <span class="sec-right" id="sec-month-hint">Tổng cả kỳ · không theo bộ lọc tháng</span>
+        <div class="cp-wrap" id="cp-month"></div>
       </div>
       <div class="chart-wrap"><canvas id="chart-month"></canvas></div>
     </div>
@@ -862,7 +908,7 @@ footer{
       <div class="sec-title" style="flex-wrap:wrap;gap:8px">
         <span class="sec-dot" style="background:var(--red)"></span>
         <span id="sec-week">Trạng Thái Đơn Hàng Theo Tuần</span>
-        <div class="tags" style="margin-left:auto" id="f-week-status"></div>
+        <div class="cp-wrap" id="cp-week"></div>
       </div>
       <div class="chart-wrap"><canvas id="chart-weekly"></canvas></div>
     </div>
@@ -872,11 +918,7 @@ footer{
       <div class="sec-title" style="flex-wrap:wrap;gap:8px">
         <span class="sec-dot" style="background:var(--purple)"></span>
         <span id="sec-cmp">So Sánh Cùng Kỳ</span>
-        <div class="tags" style="margin-left:auto" id="f-cmp-dim">
-          <span class="tag active-blue" data-v="group" onclick="setCmpDim(this)">Trạng thái</span>
-          <span class="tag"             data-v="bu"    onclick="setCmpDim(this)">Sàn</span>
-          <span class="tag"             data-v="item"  onclick="setCmpDim(this)">Sản phẩm</span>
-        </div>
+        <div class="cp-wrap" id="cp-cmp"></div>
       </div>
       <div class="cmp-grid">
         <div class="cmp-col">
@@ -905,7 +947,8 @@ footer{
       <div class="card">
         <div class="sec-title">
           <span class="sec-dot" style="background:var(--blue)"></span>
-          <span id="sec-item">Top SKU theo Giá Vốn</span>
+          <span id="sec-item">Top Sản Phẩm theo Doanh Thu</span>
+          <div class="cp-wrap" id="cp-item"></div>
         </div>
         <div id="sku-bars"></div>
       </div>
@@ -914,7 +957,8 @@ footer{
       <div class="card">
         <div class="sec-title">
           <span class="sec-dot" style="background:var(--purple)"></span>
-          <span id="sec-bu">Theo BU &amp; Trạng thái</span>
+          <span id="sec-bu">Theo Sàn</span>
+          <div class="cp-wrap" id="cp-butbl"></div>
         </div>
         <div style="display:flex;justify-content:space-between;padding:0 10px;margin-bottom:8px">
           <span id="th-bu" style="font-size:9px;color:var(--muted2);font-weight:700;text-transform:uppercase;letter-spacing:.6px">BU</span>
@@ -924,7 +968,6 @@ footer{
           </div>
         </div>
         <div id="bu-rows"></div>
-        <div style="border-top:1px solid var(--border);margin-top:12px;padding-top:12px" id="status-rows"></div>
       </div>
     </div>
 
@@ -1041,12 +1084,6 @@ const SCHEMAS = {
     statusFilter(){
       return [{v:'all',t:'Tất cả'}].concat(S.ALL_GROUPS.map(g=>({v:g,t:g})));
     },
-    seriesOf(){
-      return S.ALL_GROUPS.map(g=>({
-        v:g, t:g, tag:STATUS_STYLE[g].tag, color:tagColor(STATUS_STYLE[g].tag),
-        match:r=>r[4]===g,
-      }));
-    },
     weekMeasure: rows=>rows.reduce((s,r)=>s+r[3],0),   // biểu đồ tuần cộng doanh thu
     weekIsMoney:true,
     weekUnit:   '',
@@ -1112,7 +1149,17 @@ function blankState(){
   return {
     RAW:[], ALL_SKUS:[], ALL_BUS:[], ALL_GROUPS:[], ALL_MONTHS:[], ALL_DATES:[], ALL_WEEKS:[],
     selBUs:new Set(), selSKUs:new Set(), selMonth:null,   // null = tất cả các tháng
-    selStatus:'all', weekStatusFilter:'all', cmpDim:'group',
+    selStatus:'all',
+    // Mỗi card nhớ riêng: tách theo chiều nào, và tick những giá trị nào
+    // (tập rỗng = lấy tất cả). Xem CARD_IDS / DIMS bên dưới.
+    cards:{
+      combo :{dim:'bu',    sel:new Set()},
+      month :{dim:'bu',    sel:new Set()},
+      week  :{dim:'group', sel:new Set()},
+      cmp   :{dim:'group', sel:new Set()},
+      item  :{dim:'item',  sel:new Set()},
+      butbl :{dim:'bu',    sel:new Set()},
+    },
     drStart:null, drEnd:null, cachedAt:0,
     skipped:{noDate:0,noItem:0,empty:0,lostMoney:0},
   };
@@ -1488,22 +1535,10 @@ function paintStatusTags(){
     t.className='tag'+(t.dataset.v===S.selStatus?` active-${color}`:'');
   });
 }
-function paintWeekTags(){
-  const sc=curSchema();
-  const color=v=>v==='all'?'blue':(sc.seriesOf().find(s=>s.v===v)?.tag||'blue');
-  document.querySelectorAll('#f-week-status .tag').forEach(t=>{
-    t.className='tag'+(t.dataset.v===S.weekStatusFilter?` active-${color(t.dataset.v)}`:'');
-  });
-}
 function setStatus(el){
   S.selStatus=el.dataset.v;
   paintStatusTags();
   render();
-}
-function setWeekStatus(el){
-  S.weekStatusFilter=el.dataset.v;
-  paintWeekTags();
-  renderWeeklyChart();
 }
 // Uỷ quyền sự kiện: tên sản phẩm không còn bị nhét vào onclick nên dấu nháy/ký tự lạ không làm gãy
 document.addEventListener('change',e=>{
@@ -1648,6 +1683,14 @@ function render(){
   renderSKUBars(f);
   renderBURows(f);
   renderCompare();
+  CARD_IDS.forEach(id=>{ const e=document.getElementById('cp-'+id); if(e&&!e.innerHTML) renderPicker(id); });
+  const dl=dimLabel;
+  const put2=(i,t)=>{ const e=document.getElementById(i); if(e) e.textContent=t; };
+  put2('sec-combo',`Doanh Thu Theo Ngày & ${dl(cardState('combo').dim)}`);
+  put2('sec-month',`Doanh Thu Theo Tháng & ${dl(cardState('month').dim)}`);
+  put2('sec-week', `Doanh Thu Theo Tuần & ${dl(cardState('week').dim)}`);
+  put2('sec-item', `Top ${dl(cardState('item').dim)} theo Doanh Thu`);
+  put2('sec-bu',   `Theo ${dl(cardState('butbl').dim)}`);
 }
 
 /* ─── Chart defaults (light theme) ───────────────────── */
@@ -1668,29 +1711,145 @@ const isDark = () => {
 // Màu nhấn lấy từ biến CSS + độ trong suốt, nên tự sáng lên ở chế độ tối
 const tagColor = (tag,a='C4') => (cssVar('--'+tag)||'#64748b')+a;
 
+/* ═══════════════════════════════════════════════════════
+   BỘ CHỌN TRÊN TỪNG CARD
+   Mỗi card tự chọn tách theo Trạng thái / Sàn / Sản phẩm,
+   rồi tick những giá trị muốn xem (có ô tìm nhanh vì danh
+   sách sản phẩm rất dài). Không tick gì = lấy tất cả.
+═══════════════════════════════════════════════════════ */
+const DIMS=[{v:'group',t:'Trạng thái'},{v:'bu',t:'Sàn'},{v:'item',t:'Sản phẩm'}];
+const DIM_IDX={group:4, bu:5, item:1};
+const dimLabel  = d => (DIMS.find(x=>x.v===d)||DIMS[0]).t;
+const dimValues = d => d==='group'?S.ALL_GROUPS : d==='bu'?S.ALL_BUS : S.ALL_SKUS;
+const cardState = c => (S.cards&&S.cards[c]) || {dim:'bu',sel:new Set()};
+
+// Lọc các dòng theo giá trị card đang tick
+function cardRows(card, rows){
+  const c=cardState(card);
+  if(!c.sel.size) return rows;
+  const i=DIM_IDX[c.dim];
+  return rows.filter(r=>c.sel.has(r[i]||'—'));
+}
+// Danh sách nhãn của card, giữ thứ tự chuẩn của từng chiều
+function cardKeys(card, rows){
+  const c=cardState(card), i=DIM_IDX[c.dim];
+  const present=new Set(rows.map(r=>r[i]||'—'));
+  const order=dimValues(c.dim);
+  return order.filter(v=>present.has(v))
+              .concat([...present].filter(v=>!order.includes(v)));
+}
+// Màu của một giá trị, tuỳ chiều đang tách
+function dimColor(dim,name,i){
+  if(dim==='group') return tagColor((STATUS_STYLE[name]||STATUS_STYLE[ST_OTHER]).tag);
+  if(dim==='bu')    return buColor(name)+'CC';
+  const P=skuPalette(); return P[i%P.length]+'CC';
+}
+
+function renderPicker(card){
+  const host=document.getElementById('cp-'+card);
+  if(!host) return;
+  const c=cardState(card), vals=dimValues(c.dim);
+  const all=!c.sel.size;
+  host.innerHTML=
+    `<button class="cp-btn" onclick="toggleCP('${card}')">`+
+      `<span class="cp-dim">${dimLabel(c.dim)}</span>`+
+      `<span class="cp-count">${all?'tất cả':c.sel.size+'/'+vals.length}</span>`+
+      `<span class="cp-arrow">▾</span></button>`+
+    `<div class="cp-panel">`+
+      `<div class="cp-dims">${DIMS.map(d=>
+        `<span class="tag ${d.v===c.dim?'active-blue':''}" onclick="setCardDim('${card}','${d.v}')">${d.t}</span>`).join('')}</div>`+
+      `<input class="cp-search" placeholder="🔍 Tìm nhanh…" autocomplete="off" spellcheck="false" oninput="filterCP('${card}')">`+
+      `<div class="cp-ctrl">`+
+        `<span class="all"  onclick="cpAll('${card}')">Chọn tất cả</span>`+
+        `<span class="none" onclick="cpNone('${card}')">Bỏ chọn</span>`+
+        `<span class="found"></span></div>`+
+      `<div class="cp-list">${vals.map(v=>
+        `<label class="cp-item ${all||c.sel.has(v)?'checked':''}" data-v="${esc(v)}" title="${esc(v)}">`+
+        `<input type="checkbox" ${all||c.sel.has(v)?'checked':''}/>${esc(v)}</label>`).join('')
+        + `<div class="cp-empty" style="display:none">Không có kết quả nào khớp</div>`}</div>`+
+    `</div>`;
+}
+
+function toggleCP(card){
+  const w=document.getElementById('cp-'+card);
+  const open=!w.classList.contains('on');
+  document.querySelectorAll('.cp-wrap').forEach(x=>x.classList.remove('on'));
+  if(open){ w.classList.add('on'); const i=w.querySelector('.cp-search'); if(i) i.focus(); }
+}
+document.addEventListener('mousedown',e=>{
+  if(!e.target.closest('.cp-wrap')) document.querySelectorAll('.cp-wrap').forEach(x=>x.classList.remove('on'));
+});
+
+function setCardDim(card,dim){
+  const c=cardState(card);
+  if(c.dim===dim) return;
+  c.dim=dim; c.sel.clear();        // đổi chiều thì lựa chọn cũ không còn ý nghĩa
+  renderPicker(card);
+  document.getElementById('cp-'+card).classList.add('on');
+  render();
+}
+
+// Ô tìm nhanh: chỉ ẩn/hiện mục có sẵn nên không mất con trỏ khi gõ
+function filterCP(card){
+  const w=document.getElementById('cp-'+card);
+  const q=normHeader(w.querySelector('.cp-search').value);
+  let n=0;
+  w.querySelectorAll('.cp-item').forEach(el=>{
+    const hit=!q||normHeader(el.dataset.v).includes(q);
+    el.style.display=hit?'':'none'; if(hit) n++;
+  });
+  w.querySelector('.cp-empty').style.display=(q&&!n)?'':'none';
+  w.querySelector('.found').textContent=q?`${n} kết quả`:'';
+}
+const cpVisible = card =>
+  [...document.getElementById('cp-'+card).querySelectorAll('.cp-item')].filter(el=>el.style.display!=='none');
+
+function cpSet(card,items,on){
+  const c=cardState(card), vals=dimValues(c.dim);
+  if(!c.sel.size) vals.forEach(v=>c.sel.add(v));   // từ "tất cả" chuyển sang danh sách cụ thể
+  items.forEach(el=>{ on?c.sel.add(el.dataset.v):c.sel.delete(el.dataset.v); });
+  if(c.sel.size===vals.length) c.sel.clear();      // tick hết = tất cả
+  const q=document.getElementById('cp-'+card).querySelector('.cp-search').value;
+  renderPicker(card);
+  const w=document.getElementById('cp-'+card);
+  w.classList.add('on');
+  w.querySelector('.cp-search').value=q; filterCP(card);
+  render();
+}
+function cpAll(card){  cpSet(card, cpVisible(card), true);  }
+function cpNone(card){ cpSet(card, cpVisible(card), false); }
+
+// tick từng mục — uỷ quyền sự kiện nên tên có dấu nháy cũng không gãy
+document.addEventListener('change',e=>{
+  const cb=e.target;
+  if(!(cb instanceof HTMLInputElement)||cb.type!=='checkbox') return;
+  const lbl=cb.closest('.cp-item'); if(!lbl) return;
+  const wrap=cb.closest('.cp-wrap'); if(!wrap) return;
+  cpSet(wrap.id.replace(/^cp-/,''), [lbl], cb.checked);
+});
+
+const CARD_IDS=['combo','month','week','cmp','item','butbl'];
+function renderAllPickers(){ CARD_IDS.forEach(renderPicker); }
+
 /* ─── Combo chart ─────────────────────────────────────── */
 function renderComboChart(f){
   const sc=curSchema();
-  const dates=S.ALL_DATES.filter(d=>f.some(r=>r[2]===d));
+  const c=cardState('combo'), idx=DIM_IDX[c.dim];
+  const rows=cardRows('combo',f);
+  const dates=S.ALL_DATES.filter(d=>rows.some(r=>r[2]===d));
 
-  // gom theo ngày một lượt thay vì quét lại mảng cho từng ngày
   const byDate={}; dates.forEach(d=>byDate[d]=[]);
-  f.forEach(r=>{ if(byDate[r[2]]) byDate[r[2]].push(r); });
-  const sum=rows=>rows.reduce((s,r)=>s+r[3],0);
+  rows.forEach(r=>{ if(byDate[r[2]]) byDate[r[2]].push(r); });
+  const sum=rs=>rs.reduce((s,r)=>s+r[3],0);
   const ordData=dates.map(d=>sc.lineMeasure(byDate[d]));
 
-  // Trang nhiều sàn → cột xếp chồng theo sàn; trang một nguồn → một cột duy nhất
-  const stacked=!!sc.barSplitByBU;
-  const plats=stacked?S.ALL_BUS.filter(b=>f.some(r=>r[5]===b)):[];
-  const barSets=stacked
-    ? plats.map((p,i)=>({
-        type:'bar',label:p,stack:'m',yAxisID:'y',
-        data:dates.map(d=>sum(byDate[d].filter(r=>r[5]===p))),
-        backgroundColor:buColor(p)+'B3',
-        borderRadius:i===plats.length-1?{topLeft:5,topRight:5}:0,
-      }))
-    : [{type:'bar',label:sc.titles.amountCol,data:dates.map(d=>sum(byDate[d])),
-        backgroundColor:'rgba(5,150,105,.65)',borderRadius:5,yAxisID:'y'}];
+  const keys=cardKeys('combo',rows);
+  const barSets=keys.map((k,i)=>({
+    type:'bar',label:k,stack:'m',yAxisID:'y',
+    data:dates.map(d=>sum(byDate[d].filter(r=>(r[idx]||'—')===k))),
+    backgroundColor:dimColor(c.dim,k,i),
+    borderRadius:i===keys.length-1?{topLeft:5,topRight:5}:0,
+  }));
 
   if(chartCombo) chartCombo.destroy();
   const ctx=document.getElementById('chart-combo').getContext('2d');
@@ -1707,14 +1866,14 @@ function renderComboChart(f){
         legend:{labels:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:11}}},
         tooltip:{backgroundColor:CHART_DEFAULTS.cardBg,borderColor:CHART_DEFAULTS.gridColor,borderWidth:1,
           titleColor:CHART_DEFAULTS.tickColor,bodyColor:CHART_DEFAULTS.textColor,
-          callbacks:{label:c=>c.dataset.label===sc.lineLabel
-            ? c.parsed.y+sc.lineUnit
-            : moneyFull(c.parsed.y)}},
+          callbacks:{label:c2=>c2.dataset.label===sc.lineLabel
+            ? c2.parsed.y+sc.lineUnit
+            : `${c2.dataset.label}: ${moneyFull(c2.parsed.y)}`}},
       },
       scales:{
-        x:{ticks:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:10}},
+        x:{stacked:true,ticks:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:10}},
            grid:{color:CHART_DEFAULTS.gridColor},border:{color:CHART_DEFAULTS.gridColor}},
-        y:{ticks:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:10},callback:v=>money(v)},
+        y:{stacked:true,ticks:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:10},callback:v=>money(v)},
            grid:{color:CHART_DEFAULTS.gridColor},border:{display:false}},
         y2:{position:'right',ticks:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:10}},
             grid:{display:false},border:{display:false}},
@@ -1757,7 +1916,8 @@ const monthTotalPlugin={
 
 function renderMonthChart(){
   const sc=curSchema();
-  const rows=S.RAW.filter(matchNonTime);          // mọi bộ lọc trừ thời gian
+  const c=cardState('month'), idx=DIM_IDX[c.dim];
+  const rows=cardRows('month', S.RAW.filter(matchNonTime));   // mọi bộ lọc trừ thời gian
   const months=[...new Set(rows.map(r=>monthOf(r[2])))].sort((a,b)=>a-b);
 
   const byMonth={}; months.forEach(m=>byMonth[m]=[]);
@@ -1766,14 +1926,13 @@ function renderMonthChart(){
   const totals=months.map(m=>sum(byMonth[m]));
   const orders=months.map(m=>byMonth[m].length);
 
-  // tháng đang chọn đậm, còn lại mờ
-  const alpha=m=>(S.selMonth==null||S.selMonth===m)?'CC':'3D';
-  const plats=S.ALL_BUS.filter(b=>rows.some(r=>r[5]===b));
-  const barSets=plats.map((pl,i)=>({
-    type:'bar', label:pl, stack:'m', yAxisID:'y',
-    data:months.map(m=>sum(byMonth[m].filter(r=>r[5]===pl))),
-    backgroundColor:months.map(m=>buColor(pl)+alpha(m)),
-    borderRadius:i===plats.length-1?{topLeft:5,topRight:5}:0,
+  const alpha=m=>(S.selMonth==null||S.selMonth===m)?'CC':'3D';   // tháng đang chọn đậm hơn
+  const keys=cardKeys('month',rows);
+  const barSets=keys.map((k,i)=>({
+    type:'bar',label:k,stack:'m',yAxisID:'y',
+    data:months.map(m=>sum(byMonth[m].filter(r=>(r[idx]||'—')===k))),
+    backgroundColor:months.map(m=>dimColor(c.dim,k,i).slice(0,7)+alpha(m)),
+    borderRadius:i===keys.length-1?{topLeft:5,topRight:5}:0,
   }));
 
   if(chartMonth) chartMonth.destroy();
@@ -1787,19 +1946,19 @@ function renderMonthChart(){
     ]},
     options:{
       responsive:true,maintainAspectRatio:false,
-      layout:{padding:{top:18}},            // chừa chỗ cho chữ tổng phía trên cột
+      layout:{padding:{top:18}},
       plugins:{
         monthTotals:{values:totals},
         legend:{labels:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:11}}},
         tooltip:{backgroundColor:CHART_DEFAULTS.cardBg,borderColor:CHART_DEFAULTS.gridColor,borderWidth:1,
           titleColor:CHART_DEFAULTS.tickColor,bodyColor:CHART_DEFAULTS.textColor,
-          callbacks:{label:c=>c.dataset.label===sc.lineLabel
-            ? c.parsed.y+sc.lineUnit : `${c.dataset.label}: ${moneyFull(c.parsed.y)}`}},
+          callbacks:{label:c2=>c2.dataset.label===sc.lineLabel
+            ? c2.parsed.y+sc.lineUnit : `${c2.dataset.label}: ${moneyFull(c2.parsed.y)}`}},
       },
       scales:{
         x:{stacked:true,ticks:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:10}},
            grid:{color:CHART_DEFAULTS.gridColor},border:{color:CHART_DEFAULTS.gridColor}},
-        y:{stacked:true,grace:'12%',   // chừa khoảng hở để chữ tổng không chạm chú giải
+        y:{stacked:true,grace:'12%',
            ticks:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:10},callback:v=>money(v)},
            grid:{color:CHART_DEFAULTS.gridColor},border:{display:false}},
         y2:{position:'right',grace:'12%',
@@ -1812,42 +1971,29 @@ function renderMonthChart(){
 
 /* ─── Weekly status chart ─────────────────────────────── */
 function renderWeeklyChart(){
-  const weeks=S.ALL_WEEKS.filter(w=>S.ALL_DATES.some(d=>{
-    if(getWeekLabel(d)!==w) return false;
-    if(S.drStart||S.drEnd){const dt=dateStrToObj(d);if(S.drStart&&dt<S.drStart)return false;if(S.drEnd&&dt>S.drEnd)return false;}
-    return true;
-  }));
   const sc=curSchema();
-  const showSt=v=>S.weekStatusFilter==='all'||S.weekStatusFilter===v;
+  const c=cardState('week'), idx=DIM_IDX[c.dim];
+  const rows=cardRows('week', getFiltered());
 
-  // Lọc chung (SKU/BU/khoảng ngày) rồi gom theo tuần — mỗi dòng chỉ tính week label 1 lần
-  const byWeek={};
-  weeks.forEach(w=>byWeek[w]=[]);
-  // Ô lọc đơn chọn áp lên SÀN thì phải áp cả ở đây (trực giao với các cột xếp chồng);
-  // còn khi nó áp lên trạng thái thì bỏ qua, vì biểu đồ này vốn đã tách theo trạng thái.
-  const applySel = curSchema().filterField===5 && S.selStatus!=='all';
-  S.RAW.forEach(r=>{
-    if(!S.selSKUs.has(r[1])||!S.selBUs.has(r[5]||'—')) return;
-    if(applySel && r[5]!==S.selStatus) return;
-    if(S.selMonth!=null && monthOf(r[2])!==S.selMonth) return;
-    if(S.drStart||S.drEnd){const dt=dateStrToObj(r[2]);if(S.drStart&&dt<S.drStart)return;if(S.drEnd&&dt>S.drEnd)return;}
-    const w=getWeekLabel(r[2]);
-    if(byWeek[w]) byWeek[w].push(r);
-  });
+  const present=new Set(rows.map(r=>getWeekLabel(r[2])));
+  const weeks=S.ALL_WEEKS.filter(w=>present.has(w));          // ALL_WEEKS vốn đúng thứ tự thời gian
+  const byWeek={}; weeks.forEach(w=>byWeek[w]=[]);
+  rows.forEach(r=>{ const w=getWeekLabel(r[2]); if(byWeek[w]) byWeek[w].push(r); });
 
-  const series=sc.seriesOf().map(s=>({
-    ...s,
-    data: showSt(s.v) ? weeks.map(w=>sc.weekMeasure(byWeek[w].filter(s.match))) : weeks.map(()=>0),
+  const keys=cardKeys('week',rows);
+  const series=keys.map((k,i)=>({
+    label:k, color:dimColor(c.dim,k,i),
+    data:weeks.map(w=>sc.weekMeasure(byWeek[w].filter(r=>(r[idx]||'—')===k))),
   }));
-  const totalData=weeks.map((_,i)=>series.reduce((sum,s)=>sum+s.data[i],0));
+  const totalData=weeks.map((_,i)=>series.reduce((a,sv)=>a+sv.data[i],0));
   const last=series.length-1;
 
   if(chartWeekly) chartWeekly.destroy();
   const ctx=document.getElementById('chart-weekly').getContext('2d');
   chartWeekly=new Chart(ctx,{
     data:{labels:weeks,datasets:[
-      ...series.map((s,i)=>({
-        type:'bar',label:s.t,data:s.data,backgroundColor:s.color,stack:'s',
+      ...series.map((sv,i)=>({
+        type:'bar',label:sv.label,data:sv.data,backgroundColor:sv.color,stack:'s',
         borderRadius:i===last?{topLeft:5,topRight:5}:0,
       })),
       {type:'line',label:'Tổng',data:totalData,borderColor:'#7c3aed',backgroundColor:'transparent',
@@ -1859,7 +2005,7 @@ function renderWeeklyChart(){
         legend:{labels:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:11}}},
         tooltip:{backgroundColor:CHART_DEFAULTS.cardBg,borderColor:CHART_DEFAULTS.gridColor,borderWidth:1,
           titleColor:CHART_DEFAULTS.tickColor,bodyColor:CHART_DEFAULTS.textColor,
-          callbacks:{label:c=>sc.weekIsMoney?moneyFull(c.parsed.y):c.parsed.y+sc.weekUnit}},
+          callbacks:{label:c2=>sc.weekIsMoney?moneyFull(c2.parsed.y):c2.parsed.y+sc.weekUnit}},
       },
       scales:{
         x:{ticks:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:10}},
@@ -1873,30 +2019,10 @@ function renderWeeklyChart(){
 }
 
 /* ─── So sánh cùng kỳ ─────────────────────────────────── */
-const CMP_DIMS={group:{idx:4,label:'Trạng thái'}, bu:{idx:5,label:'Sàn'}, item:{idx:1,label:'Sản phẩm'}};
-
-function paintCmpDim(){
-  document.querySelectorAll('#f-cmp-dim .tag').forEach(t=>{
-    t.className='tag'+(t.dataset.v===(S.cmpDim||'group')?' active-blue':'');
-  });
-}
-function setCmpDim(el){
-  S.cmpDim=el.dataset.v;
-  paintCmpDim();
-  renderCompare();
-}
-
-// Màu của một lát cắt, tuỳ theo đang tách theo trạng thái / sàn / sản phẩm
-function sliceColor(dim,name,i){
-  if(dim==='group') return tagColor((STATUS_STYLE[name]||STATUS_STYLE[ST_OTHER]).tag);
-  if(dim==='bu')    return buColor(name)+'CC';
-  const P=skuPalette(); return P[i%P.length]+'CC';
-}
-
 function renderCompare(){
-  const dim=S.cmpDim||'group', idx=CMP_DIMS[dim].idx;
+  const c=cardState('cmp'), dim=c.dim, idx=DIM_IDX[dim];
   const P=comparePeriods();
-  const base=S.RAW.filter(matchNonTime);
+  const base=cardRows('cmp', S.RAW.filter(matchNonTime));
   const A=base.filter(P.aTest), B=base.filter(P.bTest);
   const sum=rows=>rows.reduce((s,r)=>s+r[3],0);
   const totA=sum(A), totB=sum(B);
@@ -1913,7 +2039,7 @@ function renderCompare(){
     const fold=m=>{ m['Khác']=rest.reduce((s,k)=>s+(m[k]||0),0); };
     fold(mA); fold(mB);
   }
-  const colors=keys.map((k,i)=>sliceColor(dim,k,i));
+  const colors=keys.map((k,i)=>dimColor(dim,k,i));
 
   const put=(id,v)=>{ const e=document.getElementById(id); if(e) e.textContent=v; };
   put('cmp-a-label',P.aLabel); put('cmp-b-label',P.bLabel);
@@ -1975,55 +2101,41 @@ function drawDonut(canvasId,slot,labels,data,colors,total){
 
 /* ─── SKU bars ────────────────────────────────────────── */
 function renderSKUBars(f){
+  const c=cardState('item'), idx=DIM_IDX[c.dim];
+  const rows=cardRows('item',f);
   const m={};
-  f.forEach(([,sku,,cost])=>{ if(!m[sku])m[sku]={sku,rev:0,n:0}; m[sku].rev+=cost; m[sku].n++; });
+  rows.forEach(r=>{ const k=r[idx]||'—'; if(!m[k])m[k]={k,rev:0,n:0}; m[k].rev+=r[3]; m[k].n++; });
   const sorted=Object.values(m).sort((a,b)=>b.rev-a.rev).slice(0,10);
   const maxR=sorted[0]?.rev||1;
   document.getElementById('sku-bars').innerHTML=sorted.map((item,i)=>{
-    const P=skuPalette(); const c=P[i%P.length];
+    const col=dimColor(c.dim,item.k,i).slice(0,7);
     const pct=Math.max((item.rev/maxR)*100,5);
     return `<div class="sku-row">
-      <div class="sku-name" title="${esc(item.sku)}">${esc(item.sku.replace(/_$/,''))}</div>
+      <div class="sku-name" title="${esc(item.k)}">${esc(String(item.k).replace(/_$/,''))}</div>
       <div class="sku-bar-bg">
-        <div class="sku-bar" style="width:${pct}%;background:linear-gradient(90deg,${c}22,${c}60);border-left:3px solid ${c}">
-          <span style="color:${c}">${money(item.rev)}</span>
+        <div class="sku-bar" style="width:${pct}%;background:linear-gradient(90deg,${col}22,${col}60);border-left:3px solid ${col}">
+          <span style="color:${col}">${money(item.rev)}</span>
         </div>
       </div>
-      <div class="sku-count" style="color:${c}">${item.n}</div>
+      <div class="sku-count" style="color:${col}">${item.n}</div>
     </div>`;
   }).join('');
 }
 
 /* ─── BU rows ─────────────────────────────────────────── */
 function renderBURows(f){
-  const sc=curSchema();
-  // Tầng trên: theo BU (sổ cấp hàng) hoặc theo SÀN (doanh thu) — cùng nằm ở cột 5
+  const c=cardState('butbl'), idx=DIM_IDX[c.dim];
+  const rows=cardRows('butbl',f);
   const m={};
-  f.forEach(r=>{ const k=r[5]||'—'; if(!m[k])m[k]={bu:k,rev:0,n:0}; m[k].rev+=r[3]; m[k].n++; });
+  rows.forEach(r=>{ const k=r[idx]||'—'; if(!m[k])m[k]={k,rev:0,n:0}; m[k].rev+=r[3]; m[k].n++; });
   const sorted=Object.values(m).sort((a,b)=>b.rev-a.rev);
-
-  document.getElementById('bu-rows').innerHTML=sorted.map(item=>{
-    const c=buColor(item.bu);
+  document.getElementById('bu-rows').innerHTML=sorted.map((item,i)=>{
+    const col=dimColor(c.dim,item.k,i).slice(0,7);
     return `<div class="bu-row">
-      <div class="bu-left"><div class="bu-dot" style="background:${c}"></div><div class="bu-name">${esc(item.bu)}</div></div>
+      <div class="bu-left"><div class="bu-dot" style="background:${col}"></div><div class="bu-name">${esc(item.k)}</div></div>
       <div class="bu-nums"><span class="bu-rev">${money(item.rev)}</span><span class="bu-ord">${item.n}</span></div>
     </div>`;
   }).join('');
-
-  // Tầng dưới: Done/Cancel (sổ cấp hàng) hoặc SL ≥ 1 / SL = 0 (doanh thu)
-  document.getElementById('status-rows').innerHTML=sc.seriesOf()
-    .map(s=>{
-      const rows=f.filter(s.match);
-      const rev=rows.reduce((a,r)=>a+r[3],0);
-      const c=`var(--${s.tag})`, bg=`var(--${s.tag}-l)`;
-      return `<div class="bu-row" style="background:${bg};border-color:${c}">
-        <div class="bu-left"><div class="bu-dot" style="background:${c}"></div><div class="bu-name">${s.t}</div></div>
-        <div class="bu-nums">
-          <span style="font-family:var(--mono);font-size:11px;color:${c};font-weight:600">${money(rev)}</span>
-          <span class="bu-ord">${rows.length}</span>
-        </div>
-      </div>`;
-    }).join('');
 }
 
 /* ─── UI helpers ──────────────────────────────────────── */
@@ -2391,11 +2503,12 @@ function syncFilterUI(){
   put('lbl-item',       sc.itemLabel);
   put('lbl-bu',         sc.buLabel);
   put('h-unit',         sc.showBU?'đơn':'dòng');
-  put('sec-combo',      sc.titles.combo);
-  put('sec-combo-hint', sc.titles.comboHint);
-  put('sec-week',       sc.titles.week);
-  put('sec-item',       sc.titles.item);
-  put('sec-bu',         sc.titles.bu);
+  put('sec-combo',      `Doanh Thu Theo Ngày & ${dimLabel(cardState('combo').dim)}`);
+  put('sec-combo-hint', `Cột = Doanh thu · Đường = ${sc.lineLabel}`);
+  put('sec-month',      `Doanh Thu Theo Tháng & ${dimLabel(cardState('month').dim)}`);
+  put('sec-week',       `Doanh Thu Theo Tuần & ${dimLabel(cardState('week').dim)}`);
+  put('sec-item',       `Top ${dimLabel(cardState('item').dim)} theo Doanh Thu`);
+  put('sec-bu',         `Theo ${dimLabel(cardState('butbl').dim)}`);
   put('th-bu',          sc.titles.buCol);
   put('th-amount',      sc.titles.amountCol);
   put('th-count',       sc.titles.countCol);
@@ -2404,15 +2517,10 @@ function syncFilterUI(){
   // Nút lọc nhóm: Trạng thái (Done/Cancel) hoặc Nhóm số lượng (SL ≥ 1 / SL = 0)
   document.getElementById('f-status').innerHTML=sc.statusFilter(src)
     .map(o=>`<span class="tag" data-v="${o.v}" onclick="setStatus(this)">${o.t}</span>`).join('');
-  document.getElementById('f-week-status').innerHTML=
-    [`<span class="tag" data-v="all" onclick="setWeekStatus(this)">Tất cả</span>`]
-    .concat(sc.seriesOf().map(s=>`<span class="tag" data-v="${esc(s.v)}" onclick="setWeekStatus(this)">${esc(s.t)}</span>`))
-    .join('');
 
   paintStatusTags();
-  paintWeekTags();
   paintMonth();
-  paintCmpDim();
+  renderAllPickers();
   updateDRLabel();
   document.querySelectorAll('.dr-preset').forEach(p=>
     p.classList.toggle('active', p.dataset.p==='all' && !S.drStart && !S.drEnd));
