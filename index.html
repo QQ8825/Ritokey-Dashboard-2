@@ -245,6 +245,35 @@ header{
 /* ── Chart containers ── */
 .chart-wrap{position:relative;height:210px}
 
+/* ── So sánh cùng kỳ ── */
+.cmp-grid{display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:center}
+.cmp-col{min-width:0}
+.cmp-head{
+  display:flex;justify-content:space-between;align-items:baseline;gap:8px;
+  padding:0 4px 8px;margin-bottom:6px;border-bottom:1px solid var(--border);
+}
+.cmp-period{font-size:11px;font-family:var(--mono);color:var(--muted);font-weight:600}
+.cmp-total{font-size:15px;font-family:var(--mono);font-weight:700;color:var(--text)}
+.cmp-sub{font-size:9.5px;font-family:var(--mono);color:var(--muted2)}
+.cmp-chart{position:relative;height:196px}
+.cmp-delta{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  padding:14px 16px;border-radius:12px;background:var(--bg2);
+  border:1px solid var(--border);min-width:124px;
+}
+.cmp-delta .d-arrow{font-size:17px;line-height:1}
+.cmp-delta .d-pct{font-size:17px;font-family:var(--mono);font-weight:700;line-height:1.1}
+.cmp-delta .d-abs{font-size:10px;font-family:var(--mono);color:var(--muted)}
+.cmp-delta .d-cap{font-size:9px;font-family:var(--mono);color:var(--muted2);text-transform:uppercase;letter-spacing:.6px}
+.cmp-up  {color:var(--green)}
+.cmp-down{color:var(--red)}
+.cmp-flat{color:var(--muted)}
+.cmp-empty{font-size:10px;font-family:var(--mono);color:var(--muted2);text-align:center;padding:72px 8px}
+@media(max-width:900px){
+  .cmp-grid{grid-template-columns:1fr;gap:12px}
+  .cmp-delta{flex-direction:row;gap:10px;min-width:0}
+}
+
 /* ── SKU bars ── */
 .sku-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
 .sku-name{
@@ -762,6 +791,38 @@ footer{
       <div class="chart-wrap"><canvas id="chart-weekly"></canvas></div>
     </div>
 
+    <!-- So sánh cùng kỳ -->
+    <div class="card" style="margin-bottom:14px">
+      <div class="sec-title" style="flex-wrap:wrap;gap:8px">
+        <span class="sec-dot" style="background:var(--purple)"></span>
+        <span id="sec-cmp">So Sánh Cùng Kỳ</span>
+        <div class="tags" style="margin-left:auto" id="f-cmp-dim">
+          <span class="tag active-blue" data-v="group" onclick="setCmpDim(this)">Trạng thái</span>
+          <span class="tag"             data-v="bu"    onclick="setCmpDim(this)">Sàn</span>
+          <span class="tag"             data-v="item"  onclick="setCmpDim(this)">Sản phẩm</span>
+        </div>
+      </div>
+      <div class="cmp-grid">
+        <div class="cmp-col">
+          <div class="cmp-head">
+            <span class="cmp-period" id="cmp-a-label">—</span>
+            <span><span class="cmp-total" id="cmp-a-total">—</span>
+                  <span class="cmp-sub" id="cmp-a-sub"></span></span>
+          </div>
+          <div class="cmp-chart"><canvas id="chart-cmp-a"></canvas></div>
+        </div>
+        <div class="cmp-delta" id="cmp-delta"></div>
+        <div class="cmp-col">
+          <div class="cmp-head">
+            <span class="cmp-period" id="cmp-b-label">—</span>
+            <span><span class="cmp-total" id="cmp-b-total">—</span>
+                  <span class="cmp-sub" id="cmp-b-sub"></span></span>
+          </div>
+          <div class="cmp-chart"><canvas id="chart-cmp-b"></canvas></div>
+        </div>
+      </div>
+    </div>
+
     <!-- Bottom row -->
     <div class="grid-2">
       <!-- SKU breakdown -->
@@ -975,7 +1036,7 @@ function blankState(){
   return {
     RAW:[], ALL_SKUS:[], ALL_BUS:[], ALL_GROUPS:[], ALL_MONTHS:[], ALL_DATES:[], ALL_WEEKS:[],
     selBUs:new Set(), selSKUs:new Set(), selMonth:null,   // null = tất cả các tháng
-    selStatus:'all', weekStatusFilter:'all',
+    selStatus:'all', weekStatusFilter:'all', cmpDim:'group',
     drStart:null, drEnd:null, cachedAt:0,
     skipped:{noDate:0,noItem:0,empty:0,lostMoney:0},
   };
@@ -986,7 +1047,7 @@ let curId = SOURCES[0].id;
 let S     = STATE[curId];                       // state của trang đang xem
 const curSrc = () => SOURCES.find(s=>s.id===curId);
 
-let chartCombo=null, chartWeekly=null;
+let chartCombo=null, chartWeekly=null, chartCmpA=null, chartCmpB=null;
 
 const SKU_PALETTE=['#2563eb','#059669','#d97706','#dc2626','#7c3aed','#ea580c','#0891b2','#db2777','#65a30d','#0284c7'];
 
@@ -1413,20 +1474,53 @@ function dateStrToObj(dateStr){
 }
 // Ngày trong RAW có dạng "dd/MM" → lấy số tháng
 const monthOf = dateStr => +dateStr.split('/')[1];
-function getFiltered(){
+// Tách riêng 2 nhóm điều kiện: khối "so sánh cùng kỳ" cần giữ bộ lọc
+// sàn/trạng thái/sản phẩm nhưng tự quyết định khoảng thời gian của nó.
+function matchNonTime(r){
   const gi=curSchema().filterField;      // 4 = trạng thái, 5 = sàn
-  return S.RAW.filter(r=>{
-    if(!S.selSKUs.has(r[1])) return false;
-    if(!S.selBUs.has(r[5]||'—')) return false;
-    if(S.selStatus!=='all' && r[gi]!==S.selStatus) return false;
-    if(S.selMonth!=null && monthOf(r[2])!==S.selMonth) return false;
-    if(S.drStart||S.drEnd){
-      const dt=dateStrToObj(r[2]);
-      if(S.drStart && dt<S.drStart) return false;
-      if(S.drEnd   && dt>S.drEnd)   return false;
-    }
-    return true;
+  if(!S.selSKUs.has(r[1])) return false;
+  if(!S.selBUs.has(r[5]||'—')) return false;
+  if(S.selStatus!=='all' && r[gi]!==S.selStatus) return false;
+  return true;
+}
+function matchTime(r){
+  if(S.selMonth!=null && monthOf(r[2])!==S.selMonth) return false;
+  if(S.drStart||S.drEnd){
+    const dt=dateStrToObj(r[2]);
+    if(S.drStart && dt<S.drStart) return false;
+    if(S.drEnd   && dt>S.drEnd)   return false;
+  }
+  return true;
+}
+function getFiltered(){ return S.RAW.filter(r=>matchNonTime(r)&&matchTime(r)); }
+
+/* Kỳ này và kỳ trước được suy ra từ bộ lọc thời gian đang đặt:
+   - chọn 1 tháng      → tháng đó so với tháng liền trước
+   - đặt khoảng ngày   → khoảng đó so với khoảng dài bằng nó ngay trước
+   - không lọc gì      → tháng gần nhất có dữ liệu so với tháng trước đó */
+function comparePeriods(){
+  const byMonth=(a,b)=>({
+    aLabel:`Tháng ${a}`, aTest:r=>monthOf(r[2])===a,
+    bLabel:`Tháng ${b}`, bTest:r=>monthOf(r[2])===b,
   });
+  if(S.selMonth!=null) return byMonth(S.selMonth, S.selMonth===1?12:S.selMonth-1);
+
+  if(S.drStart&&S.drEnd){
+    const DAY=86400000;
+    const len=Math.round((S.drEnd-S.drStart)/DAY)+1;
+    const pEnd=new Date(S.drStart); pEnd.setDate(pEnd.getDate()-1);
+    const pStart=new Date(pEnd);    pStart.setDate(pStart.getDate()-len+1);
+    const f=d=>`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}`;
+    const within=(r,s,e)=>{ const dt=dateStrToObj(r[2]); return dt>=s&&dt<=e; };
+    return {
+      aLabel:`${f(S.drStart)} → ${f(S.drEnd)}`, aTest:r=>within(r,S.drStart,S.drEnd),
+      bLabel:`${f(pStart)} → ${f(pEnd)}`,       bTest:r=>within(r,pStart,pEnd),
+    };
+  }
+  const m=S.ALL_MONTHS;
+  if(m.length>=2) return byMonth(m[m.length-1], m[m.length-2]);
+  if(m.length===1) return {aLabel:`Tháng ${m[0]}`, aTest:()=>true, bLabel:'kỳ trước', bTest:()=>false};
+  return {aLabel:'—', aTest:()=>false, bLabel:'—', bTest:()=>false};
 }
 
 /* ─── Render ──────────────────────────────────────────── */
@@ -1473,6 +1567,7 @@ function render(){
   renderWeeklyChart();
   renderSKUBars(f);
   renderBURows(f);
+  renderCompare();
 }
 
 /* ─── Chart defaults (light theme) ───────────────────── */
@@ -1597,6 +1692,107 @@ function renderWeeklyChart(){
       }
     }
   });
+}
+
+/* ─── So sánh cùng kỳ ─────────────────────────────────── */
+const CMP_DIMS={group:{idx:4,label:'Trạng thái'}, bu:{idx:5,label:'Sàn'}, item:{idx:1,label:'Sản phẩm'}};
+
+function paintCmpDim(){
+  document.querySelectorAll('#f-cmp-dim .tag').forEach(t=>{
+    t.className='tag'+(t.dataset.v===(S.cmpDim||'group')?' active-blue':'');
+  });
+}
+function setCmpDim(el){
+  S.cmpDim=el.dataset.v;
+  paintCmpDim();
+  renderCompare();
+}
+
+// Màu của một lát cắt, tuỳ theo đang tách theo trạng thái / sàn / sản phẩm
+function sliceColor(dim,name,i){
+  if(dim==='group') return (STATUS_STYLE[name]||STATUS_STYLE[ST_OTHER]).color;
+  if(dim==='bu')    return buColor(name)+'CC';
+  return SKU_PALETTE[i%SKU_PALETTE.length]+'CC';
+}
+
+function renderCompare(){
+  const dim=S.cmpDim||'group', idx=CMP_DIMS[dim].idx;
+  const P=comparePeriods();
+  const base=S.RAW.filter(matchNonTime);
+  const A=base.filter(P.aTest), B=base.filter(P.bTest);
+  const sum=rows=>rows.reduce((s,r)=>s+r[3],0);
+  const totA=sum(A), totB=sum(B);
+
+  // Gộp theo nhãn trên CẢ HAI kỳ rồi dùng chung thứ tự + màu, để 2 vòng tròn so được với nhau
+  const tally=rows=>{ const m={}; rows.forEach(r=>{ const k=r[idx]||'—'; m[k]=(m[k]||0)+r[3]; }); return m; };
+  const mA=tally(A), mB=tally(B);
+  let keys=[...new Set([...Object.keys(mA),...Object.keys(mB)])]
+    .sort((x,y)=>((mA[y]||0)+(mB[y]||0))-((mA[x]||0)+(mB[x]||0)));
+  if(dim==='group') keys=STATUS_ORDER.filter(k=>keys.includes(k));
+  if(dim==='item' && keys.length>6){              // quá nhiều sản phẩm → giữ 6 lát lớn nhất
+    const rest=keys.slice(6);
+    keys=keys.slice(0,6).concat('Khác');
+    const fold=m=>{ m['Khác']=rest.reduce((s,k)=>s+(m[k]||0),0); };
+    fold(mA); fold(mB);
+  }
+  const colors=keys.map((k,i)=>sliceColor(dim,k,i));
+
+  const put=(id,v)=>{ const e=document.getElementById(id); if(e) e.textContent=v; };
+  put('cmp-a-label',P.aLabel); put('cmp-b-label',P.bLabel);
+  put('cmp-a-total',money(totA)); put('cmp-b-total',money(totB));
+  put('cmp-a-sub',`· ${A.length} đơn`); put('cmp-b-sub',`· ${B.length} đơn`);
+
+  // Ô chênh lệch ở giữa
+  const box=document.getElementById('cmp-delta');
+  const diff=totA-totB;
+  if(!B.length && !A.length){
+    box.className='cmp-delta cmp-flat';
+    box.innerHTML='<div class="d-cap">không có dữ liệu</div>';
+  }else if(!B.length){
+    box.className='cmp-delta cmp-flat';
+    box.innerHTML='<div class="d-cap">kỳ trước</div><div class="d-abs">chưa có dữ liệu</div>';
+  }else{
+    const pct=(diff/Math.abs(totB))*100;
+    const up=diff>0.000001, down=diff<-0.000001;
+    box.className='cmp-delta '+(up?'cmp-up':down?'cmp-down':'cmp-flat');
+    box.innerHTML=
+      `<div class="d-arrow">${up?'▲':down?'▼':'='}</div>`+
+      `<div class="d-pct">${up?'+':''}${pct.toFixed(1).replace('.',',')}%</div>`+
+      `<div class="d-abs">${up?'+':''}${money(diff)}</div>`+
+      `<div class="d-cap">so với kỳ trước</div>`;
+  }
+
+  drawDonut('chart-cmp-a','A',keys,keys.map(k=>mA[k]||0),colors,totA);
+  drawDonut('chart-cmp-b','B',keys,keys.map(k=>mB[k]||0),colors,totB);
+}
+
+function drawDonut(canvasId,slot,labels,data,colors,total){
+  const prev = slot==='A'?chartCmpA:chartCmpB;
+  if(prev) prev.destroy();
+  const ctx=document.getElementById(canvasId).getContext('2d');
+  const empty=total<=0;
+  const chart=new Chart(ctx,{
+    type:'doughnut',
+    data:{labels: empty?['Không có dữ liệu']:labels,
+          datasets:[{data: empty?[1]:data,
+                     backgroundColor: empty?['#e2e8f0']:colors,
+                     borderColor:'#fff', borderWidth:2}]},
+    options:{
+      responsive:true, maintainAspectRatio:false, cutout:'58%',
+      plugins:{
+        legend:{position:'bottom',
+          labels:{color:CHART_DEFAULTS.tickColor, boxWidth:9, boxHeight:9, padding:8,
+                  font:{family:CHART_DEFAULTS.fontMono,size:9.5}}},
+        tooltip:{enabled:!empty, backgroundColor:'#fff',borderColor:'#dde4f0',borderWidth:1,
+          titleColor:'#64748b',bodyColor:'#1e2d4d',
+          callbacks:{label:c=>{
+            const v=c.parsed, pc=total?((v/total)*100).toFixed(1).replace('.',','):'0,0';
+            return `${c.label}: ${moneyFull(v)} (${pc}%)`;
+          }}},
+      }
+    }
+  });
+  if(slot==='A') chartCmpA=chart; else chartCmpB=chart;
 }
 
 /* ─── SKU bars ────────────────────────────────────────── */
@@ -2011,6 +2207,7 @@ function syncFilterUI(){
   paintStatusTags();
   paintWeekTags();
   paintMonth();
+  paintCmpDim();
   updateDRLabel();
   document.querySelectorAll('.dr-preset').forEach(p=>
     p.classList.toggle('active', p.dataset.p==='all' && !S.drStart && !S.drEnd));
