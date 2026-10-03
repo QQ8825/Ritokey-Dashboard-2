@@ -983,8 +983,7 @@ footer{
       <div class="sec-title" style="flex-wrap:wrap;gap:8px">
         <span class="sec-dot" style="background:var(--purple)"></span>
         <span id="sec-cmp">So Sánh Cùng Kỳ</span>
-        <span class="sec-right" id="sec-cmp-note">Không tính đơn Chờ xử lý</span>
-        <div class="cp-wrap" id="cp-cmp" style="margin-left:14px"></div>
+        <div class="cp-wrap" id="cp-cmp"></div>
       </div>
       <div class="cmp-grid">
         <div class="cmp-col">
@@ -1086,10 +1085,11 @@ const CACHE_MS = 30 * 1000;
 const ST_DONE='Hoàn thành', ST_DOING='Đang xử lý', ST_WAIT='Chờ xử lý',
       ST_CANCEL='Huỷ',      ST_OTHER='Khác';
 const STATUS_ORDER=[ST_DONE, ST_DOING, ST_WAIT, ST_CANCEL, ST_OTHER];
-// Đơn chờ xử lý chưa phải doanh thu thực hiện nên không đưa vào khối so sánh
-// cùng kỳ: đầu tháng gần như mọi đơn đều đang chờ, để vào sẽ thành "điểm sáng"
-// giả và làm lệch cả phần trăm tăng giảm.
-const CMP_SKIP=new Set([ST_WAIT]);
+// Đơn chờ xử lý chưa phải doanh thu thực hiện nên câu NHẬN XÉT không bình
+// luận về nhóm này: đầu tháng gần như mọi đơn mới đều đang chờ, nhận xét sẽ
+// gọi đó là "điểm sáng" dù chẳng nói lên điều gì. Biểu đồ và bảng vẫn hiện
+// đủ để tra cứu, chỉ phần diễn giải là bỏ qua.
+const NOTE_SKIP=new Set([ST_WAIT]);
 const STATUS_STYLE={
   [ST_DONE]  :{tag:'green'},  [ST_DOING] :{tag:'blue'},   [ST_WAIT]  :{tag:'yellow'},
   [ST_CANCEL]:{tag:'red'},    [ST_OTHER] :{tag:'purple'},
@@ -1230,7 +1230,7 @@ function blankState(){
       combo :{dim:'bu',    sel:null},
       month :{dim:'bu',    sel:null},
       week  :{dim:'group', sel:null},
-      cmp   :{dim:'bu',    sel:null},
+      cmp   :{dim:'group', sel:null},
       item  :{dim:'item',  sel:null},
       butbl :{dim:'bu',    sel:null},
     },
@@ -1813,10 +1813,6 @@ const tagColor = (tag,a='C4') => (cssVar('--'+tag)||'#64748b')+a;
    sách sản phẩm rất dài). Không tick gì = lấy tất cả.
 ═══════════════════════════════════════════════════════ */
 const DIMS=[{v:'group',t:'Trạng thái'},{v:'bu',t:'Sàn'},{v:'item',t:'Sản phẩm'}];
-// Card so sánh cùng kỳ không phân tích theo trạng thái: tăng giảm giữa các
-// trạng thái phản ánh tiến độ xử lý đơn chứ không phải kết quả kinh doanh.
-const CARD_DIMS={ cmp:['bu','item'] };
-const dimsFor = card => DIMS.filter(d=>!CARD_DIMS[card] || CARD_DIMS[card].includes(d.v));
 const DIM_IDX={group:4, bu:5, item:1};
 const dimLabel  = d => (DIMS.find(x=>x.v===d)||DIMS[0]).t;
 const dimValues = d => d==='group'?S.ALL_GROUPS : d==='bu'?S.ALL_BUS : S.ALL_SKUS;
@@ -1856,7 +1852,7 @@ function renderPicker(card){
       `<span class="cp-count">${all?'tất cả':c.sel.size+'/'+vals.length}</span>`+
       `<span class="cp-arrow">▾</span></button>`+
     `<div class="cp-panel">`+
-      `<div class="cp-dims">${dimsFor(card).map(d=>
+      `<div class="cp-dims">${DIMS.map(d=>
         `<span class="tag ${d.v===c.dim?'active-blue':''}" onclick="setCardDim('${card}','${d.v}')">${d.t}</span>`).join('')}</div>`+
       `<input class="cp-search" placeholder="🔍 Tìm nhanh…" autocomplete="off" spellcheck="false" oninput="filterCP('${card}')">`+
       `<div class="cp-ctrl">`+
@@ -2122,7 +2118,7 @@ function renderWeeklyChart(){
 function renderCompare(){
   const c=cardState('cmp'), dim=c.dim, idx=DIM_IDX[dim];
   const P=comparePeriods();
-  const base=cardRows('cmp', S.RAW.filter(r=>matchNonTime(r) && !CMP_SKIP.has(r[4])));
+  const base=cardRows('cmp', S.RAW.filter(matchNonTime));
   const A=base.filter(P.aTest), B=base.filter(P.bTest);
   const sum=rows=>rows.reduce((s,r)=>s+r[3],0);
   const totA=sum(A), totB=sum(B);
@@ -2183,6 +2179,7 @@ function renderCompare(){
 /* Dựng đoạn nhận xét từ chính số liệu: tổng quan, mức độ tập trung của
    thay đổi, độ lan rộng, rồi các mục mới phát sinh và mục đã ngừng.    */
 function buildNote(dim,rows,totA,totB,P,dA,dB){
+  rows=rows.filter(r=>!NOTE_SKIP.has(r.k));   // không bình luận về nhóm chờ xử lý
   const lab=dimLabel(dim).toLowerCase();
   const pc = v => v.toFixed(1).replace('.',',')+'%';
   const diff=totA-totB;
