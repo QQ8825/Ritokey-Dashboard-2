@@ -129,6 +129,16 @@ header{
 .nav-item.unset .nav-sub{color:var(--yellow)}
 .main{flex:1;min-width:0;padding:20px 24px}
 
+.month-sel{
+  padding:6px 12px;border-radius:10px;cursor:pointer;min-width:168px;
+  border:1.5px solid var(--border2);background:var(--bg1);color:var(--text);
+  font-family:var(--mono);font-size:11px;outline:none;transition:all .15s;
+  box-shadow:var(--shadow);
+}
+.month-sel:hover{border-color:var(--blue)}
+.month-sel:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+.month-sel.on{background:var(--green-l);border-color:var(--green);color:var(--green);font-weight:600}
+
 /* ── Filters ── */
 .filters{
   background:var(--bg1);border:1px solid var(--border);
@@ -668,10 +678,10 @@ footer{
           </div>
         </div>
       </div>
-      <!-- Tháng (chỉ hiện tháng thực sự có dữ liệu) -->
+      <!-- Tháng -->
       <div class="filter-group" id="fg-month">
         <div class="filter-label">Tháng</div>
-        <div class="tags" id="f-months"></div>
+        <select class="month-sel" id="f-month" onchange="setMonth(this)"></select>
       </div>
       <!-- BU (ẩn với sheet không có cột BU) -->
       <div class="filter-group" id="fg-bu">
@@ -964,7 +974,7 @@ function csvUrlOf(src){
 function blankState(){
   return {
     RAW:[], ALL_SKUS:[], ALL_BUS:[], ALL_GROUPS:[], ALL_MONTHS:[], ALL_DATES:[], ALL_WEEKS:[],
-    selBUs:new Set(), selSKUs:new Set(), selMonths:new Set(),
+    selBUs:new Set(), selSKUs:new Set(), selMonth:null,   // null = tất cả các tháng
     selStatus:'all', weekStatusFilter:'all',
     drStart:null, drEnd:null, cachedAt:0,
     skipped:{noDate:0,noItem:0,empty:0,lostMoney:0},
@@ -1233,7 +1243,6 @@ function deriveConstants(){
   S.ALL_GROUPS=STATUS_ORDER.filter(g=>present.has(g));
   // tháng có mặt trong dữ liệu, xếp tăng dần
   S.ALL_MONTHS=[...new Set(S.RAW.map(r=>monthOf(r[2])))].sort((a,b)=>a-b);
-  [...S.selMonths].forEach(m=>{ if(!S.ALL_MONTHS.includes(m)) S.selMonths.delete(m); });
   S.ALL_DATES=[...new Set(S.RAW.map(r=>r[2]))].sort((a,b)=>{
     const[da,ma]=a.split('/').map(Number),[db,mb]=b.split('/').map(Number);
     return (ma*100+da)-(mb*100+db);
@@ -1314,26 +1323,23 @@ function toggleBU(el){
    Tháng và khoảng ngày đều là bộ lọc thời gian nên loại trừ nhau:
    chọn tháng thì xoá khoảng ngày đang đặt và ngược lại, tránh việc
    hai bộ lọc chồng nhau ra kết quả rỗng mà không hiểu vì sao. */
-function paintMonthTags(){
-  const box=document.getElementById('f-months');
-  box.innerHTML=[`<span class="tag ${S.selMonths.size?'':'active-blue'}" data-m="all" onclick="toggleMonth(this)">Tất cả</span>`]
-    .concat(S.ALL_MONTHS.map(m=>
-      `<span class="tag ${S.selMonths.has(m)?'active-green':''}" data-m="${m}" onclick="toggleMonth(this)">Tháng ${m}</span>`))
+function paintMonth(){
+  const sel=document.getElementById('f-month');
+  const has=new Set(S.ALL_MONTHS);
+  sel.innerHTML=['<option value="all">Tất cả các tháng</option>']
+    .concat(Array.from({length:12},(_,i)=>i+1).map(m=>
+      `<option value="${m}">Tháng ${m}${has.has(m)?'':' — chưa có đơn'}</option>`))
     .join('');
-  document.getElementById('fg-month').style.display=S.ALL_MONTHS.length>1?'':'none';
+  sel.value = S.selMonth==null ? 'all' : String(S.selMonth);
+  sel.className='month-sel'+(S.selMonth!=null?' on':'');
 }
-function toggleMonth(el){
-  const v=el.dataset.m;
-  if(v==='all') S.selMonths.clear();
-  else{
-    const m=+v;
-    S.selMonths.has(m)?S.selMonths.delete(m):S.selMonths.add(m);
-  }
-  if(S.selMonths.size){            // đang lọc theo tháng → bỏ khoảng ngày để không chồng nhau
+function setMonth(el){
+  S.selMonth = el.value==='all' ? null : +el.value;
+  if(S.selMonth!=null){            // đang lọc theo tháng → bỏ khoảng ngày để không chồng nhau
     S.drStart=null; S.drEnd=null; updateDRLabel();
     document.querySelectorAll('.dr-preset').forEach(p=>p.classList.toggle('active',p.dataset.p==='all'));
   }
-  paintMonthTags();
+  paintMonth();
   render();
 }
 function paintStatusTags(){
@@ -1413,7 +1419,7 @@ function getFiltered(){
     if(!S.selSKUs.has(r[1])) return false;
     if(!S.selBUs.has(r[5]||'—')) return false;
     if(S.selStatus!=='all' && r[gi]!==S.selStatus) return false;
-    if(S.selMonths.size && !S.selMonths.has(monthOf(r[2]))) return false;
+    if(S.selMonth!=null && monthOf(r[2])!==S.selMonth) return false;
     if(S.drStart||S.drEnd){
       const dt=dateStrToObj(r[2]);
       if(S.drStart && dt<S.drStart) return false;
@@ -1453,8 +1459,7 @@ function render(){
   // Footer nói rõ vì sao tổng có thể khác sheet: đang lọc bớt, hoặc có dòng bị bỏ qua
   const sk=S.skipped||{};
   const parts=[`${S.RAW.length} dòng đọc được`];
-  if(S.selMonths.size)
-    parts.push(`lọc tháng ${[...S.selMonths].sort((a,b)=>a-b).join(', ')}`);
+  if(S.selMonth!=null) parts.push(`lọc tháng ${S.selMonth}`);
   if(S.selSKUs.size<S.ALL_SKUS.length)
     parts.push(`⚠ đang lọc ${S.selSKUs.size}/${S.ALL_SKUS.length} ${curSchema().itemShort}`);
   if(S.decSep)   parts.push(`dấu thập phân "${S.decSep}"`);
@@ -1551,7 +1556,7 @@ function renderWeeklyChart(){
   S.RAW.forEach(r=>{
     if(!S.selSKUs.has(r[1])||!S.selBUs.has(r[5]||'—')) return;
     if(applySel && r[5]!==S.selStatus) return;
-    if(S.selMonths.size && !S.selMonths.has(monthOf(r[2]))) return;
+    if(S.selMonth!=null && monthOf(r[2])!==S.selMonth) return;
     if(S.drStart||S.drEnd){const dt=dateStrToObj(r[2]);if(S.drStart&&dt<S.drStart)return;if(S.drEnd&&dt>S.drEnd)return;}
     const w=getWeekLabel(r[2]);
     if(byWeek[w]) byWeek[w].push(r);
@@ -1793,7 +1798,7 @@ function applyDR(){
   S.drStart=pickStart||null;
   // Chỉ chọn 1 ngày (chưa có ngày kết thúc) → lọc đúng riêng ngày đó
   S.drEnd=pickEnd || (pickStart ? new Date(pickStart) : null);
-  if(S.drStart||S.drEnd){ S.selMonths.clear(); paintMonthTags(); }  // nhường quyền cho khoảng ngày
+  if(S.drStart||S.drEnd){ S.selMonth=null; paintMonth(); }  // nhường quyền cho khoảng ngày
   updateDRLabel(); closeDRPanel(); render();
 }
 function cancelDR(){ closeDRPanel(); }
@@ -2005,7 +2010,7 @@ function syncFilterUI(){
 
   paintStatusTags();
   paintWeekTags();
-  paintMonthTags();
+  paintMonth();
   updateDRLabel();
   document.querySelectorAll('.dr-preset').forEach(p=>
     p.classList.toggle('active', p.dataset.p==='all' && !S.drStart && !S.drEnd));
