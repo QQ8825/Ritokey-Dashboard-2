@@ -390,19 +390,28 @@ header{
 .an-sum{font-size:10px;font-family:var(--mono);color:var(--muted2);margin-left:auto}
 .an-lead{font-size:11px;font-family:var(--mono);color:var(--muted);margin-bottom:10px;line-height:1.6}
 .an-lead b{font-weight:700}
+/* Hàng tiêu đề và các dòng là hai lưới riêng nên 3 cột bên phải phải có
+   bề rộng cố định, nếu không mỗi lưới tự co theo nội dung và lệch nhau. */
+.an-grid{display:grid;grid-template-columns:10px minmax(0,1fr) 162px 84px 92px;align-items:center;gap:10px}
+.an-th{
+  padding:0 11px 7px;font-size:9px;font-family:var(--mono);color:var(--muted2);
+  text-transform:uppercase;letter-spacing:.7px;font-weight:700;
+}
+.an-th .th-flow{text-align:right}
+.an-th .th-badge{text-align:center}
+.an-th .th-abs{text-align:right}
 .an-row{
-  display:grid;grid-template-columns:auto minmax(0,1fr) auto auto auto;
-  align-items:center;gap:10px;padding:7px 10px;border-radius:8px;
+  padding:7px 10px;border-radius:8px;
   background:var(--bg2);border:1px solid var(--border);margin-bottom:4px;
 }
 .an-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .an-name{font-size:11px;font-family:var(--mono);color:var(--text);font-weight:600;
          overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.an-flow{font-size:10px;font-family:var(--mono);color:var(--muted2);white-space:nowrap}
-.an-abs{font-size:10px;font-family:var(--mono);color:var(--muted);white-space:nowrap;min-width:72px;text-align:right}
+.an-flow{font-size:10px;font-family:var(--mono);color:var(--muted2);white-space:nowrap;text-align:right}
+.an-abs{font-size:10px;font-family:var(--mono);color:var(--muted);white-space:nowrap;text-align:right}
 .an-badge{
   font-size:10px;font-family:var(--mono);font-weight:700;white-space:nowrap;
-  padding:2px 8px;border-radius:20px;min-width:74px;text-align:center;
+  padding:2px 8px;border-radius:20px;text-align:center;
 }
 .an-up  {background:var(--green-l); color:var(--green)}
 .an-down{background:var(--red-l);   color:var(--red)}
@@ -411,8 +420,9 @@ header{
 .an-stop{background:var(--yellow-l);color:var(--yellow)}
 .an-more{font-size:10px;font-family:var(--mono);color:var(--muted2);padding:6px 10px}
 @media(max-width:900px){
-  .an-row{grid-template-columns:auto minmax(0,1fr) auto;row-gap:4px}
-  .an-flow{grid-column:2/-1}
+  .an-grid{grid-template-columns:10px minmax(0,1fr) auto;row-gap:5px}
+  .an-th{display:none}                       /* màn hẹp: bỏ tiêu đề, mỗi dòng tự xuống hàng */
+  .an-flow{grid-column:2/-1;text-align:left}
 }
 
 /* ── SKU bars ── */
@@ -2160,8 +2170,15 @@ function renderAnalysis(dim,keys,colors,mA,mB,P){
       `<span class="an-sum">${esc(P.bLabel)} → ${esc(P.aLabel)} · ${summary||'không đổi'}</span>`+
     `</div>`+
     `<div class="an-lead">${lead.join('<br>')}</div>`+
+    `<div class="an-th an-grid">`+
+      `<span></span>`+
+      `<span>${dimLabel(dim)}</span>`+
+      `<span class="th-flow">${esc(P.bLabel)} → ${esc(P.aLabel)}</span>`+
+      `<span class="th-badge">Thay đổi</span>`+
+      `<span class="th-abs">Chênh lệch</span>`+
+    `</div>`+
     rows.slice(0,LIMIT).map(r=>
-      `<div class="an-row">`+
+      `<div class="an-row an-grid">`+
         `<span class="an-dot" style="background:${r.color}"></span>`+
         `<span class="an-name" title="${esc(r.k)}">${esc(r.k)}</span>`+
         `<span class="an-flow">${money(r.b)} → ${money(r.a)}</span>`+
