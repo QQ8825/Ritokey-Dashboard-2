@@ -1704,9 +1704,10 @@ function monthElapsedDays(m){
 
 function comparePeriods(){
   const today=new Date(); today.setHours(0,0,0,0);
+  const full=m=>new Date(DATA_YEAR,m,0).getDate();     // tổng số ngày của tháng
   const byMonth=(a,b)=>({
-    aLabel:`Tháng ${a}`, aTest:r=>monthOf(r[2])===a, aDays:monthElapsedDays(a),
-    bLabel:`Tháng ${b}`, bTest:r=>monthOf(r[2])===b, bDays:monthElapsedDays(b),
+    aLabel:`Tháng ${a}`, aTest:r=>monthOf(r[2])===a, aDays:monthElapsedDays(a), aFull:full(a),
+    bLabel:`Tháng ${b}`, bTest:r=>monthOf(r[2])===b, bDays:monthElapsedDays(b), bFull:full(b),
   });
   if(S.selMonth!=null) return byMonth(S.selMonth, S.selMonth===1?12:S.selMonth-1);
 
@@ -1720,15 +1721,15 @@ function comparePeriods(){
     // khoảng kéo sang tương lai thì chỉ tính tới hôm nay
     const span=(s,e)=>Math.max(0, Math.round(((e>today?today:e)-s)/DAY)+1);
     return {
-      aLabel:`${f(S.drStart)} → ${f(S.drEnd)}`, aTest:r=>within(r,S.drStart,S.drEnd), aDays:span(S.drStart,S.drEnd),
-      bLabel:`${f(pStart)} → ${f(pEnd)}`,       bTest:r=>within(r,pStart,pEnd),       bDays:span(pStart,pEnd),
+      aLabel:`${f(S.drStart)} → ${f(S.drEnd)}`, aTest:r=>within(r,S.drStart,S.drEnd), aDays:span(S.drStart,S.drEnd), aFull:len,
+      bLabel:`${f(pStart)} → ${f(pEnd)}`,       bTest:r=>within(r,pStart,pEnd),       bDays:span(pStart,pEnd),       bFull:len,
     };
   }
   const m=S.ALL_MONTHS;
   if(m.length>=2) return byMonth(m[m.length-1], m[m.length-2]);
-  if(m.length===1) return {aLabel:`Tháng ${m[0]}`, aTest:()=>true, aDays:monthElapsedDays(m[0]),
-                           bLabel:'kỳ trước',      bTest:()=>false, bDays:0};
-  return {aLabel:'—', aTest:()=>false, aDays:0, bLabel:'—', bTest:()=>false, bDays:0};
+  if(m.length===1) return {aLabel:`Tháng ${m[0]}`, aTest:()=>true, aDays:monthElapsedDays(m[0]), aFull:full(m[0]),
+                           bLabel:'kỳ trước',      bTest:()=>false, bDays:0, bFull:0};
+  return {aLabel:'—', aTest:()=>false, aDays:0, aFull:0, bLabel:'—', bTest:()=>false, bDays:0, bFull:0};
 }
 
 /* ─── Render ──────────────────────────────────────────── */
@@ -2178,9 +2179,11 @@ function renderCompare(){
 
 /* Dựng đoạn nhận xét từ chính số liệu: tổng quan, mức độ tập trung của
    thay đổi, độ lan rộng, rồi các mục mới phát sinh và mục đã ngừng.    */
+/* Nhận xét chỉ gồm hai ý: nhịp doanh thu trung bình mỗi ngày của hai kỳ,
+   và dự báo cả kỳ nếu giữ nguyên nhịp đó. Không bình luận từng mục nữa —
+   bảng bên dưới đã liệt kê đủ, nhắc lại chỉ làm loãng.
+   totA/totB truyền vào là mức TRUNG BÌNH MỖI NGÀY, không phải tổng.     */
 function buildNote(dim,rows,totA,totB,P,dA,dB){
-  rows=rows.filter(r=>!NOTE_SKIP.has(r.k));   // không bình luận về nhóm chờ xử lý
-  const lab=dimLabel(dim).toLowerCase();
   const pc = v => v.toFixed(1).replace('.',',')+'%';
   const diff=totA-totB;
   const dir = diff>0.005?'up' : diff<-0.005?'down' : 'flat';
@@ -2189,51 +2192,33 @@ function buildNote(dim,rows,totA,totB,P,dA,dB){
 
   if(!totA && !totB) return {dir:'flat',ico:'➖',html:'Không có dữ liệu ở cả hai kỳ để so sánh.'};
 
-  // 1 · tổng quan
+  // 1 · nhịp trung bình mỗi ngày
   if(!totB){
     s.push(`<b>${esc(P.aLabel)}</b> đạt trung bình <b>${moneyFull(totA)}/ngày</b> (${dA} ngày). `
-         + `Chưa có dữ liệu ở ${esc(P.bLabel)} nên chưa so sánh được; các con số dưới đây đều là phát sinh mới.`);
+         + `Chưa có dữ liệu ở ${esc(P.bLabel)} nên chưa so sánh được.`);
   }else{
     const word = dir==='up'?'<span class="up">tăng</span>' : dir==='down'?'<span class="down">giảm</span>' : 'đi ngang';
-    const pct  = pc(Math.abs(diff/Math.abs(totB)*100));
     s.push(`<b>${esc(P.aLabel)}</b> đạt trung bình <b>${moneyFull(totA)}/ngày</b> (${dA} ngày), ${word}`
-         + (dir==='flat'?'':` <b>${pct}</b>`)
-         + ` so với <b>${moneyFull(totB)}/ngày</b> của ${esc(P.bLabel)} (${dB} ngày).`
-         + (dA<dB?` Kỳ này mới đi được ${dA}/${dB} ngày nên so theo trung bình ngày thay vì so tổng.`:''));
+         + (dir==='flat'?'':` <b>${pc(Math.abs(diff/Math.abs(totB)*100))}</b>`)
+         + ` so với <b>${moneyFull(totB)}/ngày</b> của ${esc(P.bLabel)} (${dB} ngày).`);
   }
 
-  const ups=rows.filter(r=>r.d>0), downs=rows.filter(r=>r.d<0);
-  const sumUp=ups.reduce((a,r)=>a+r.d,0), sumDown=downs.reduce((a,r)=>a+Math.abs(r.d),0);
-
-  // 2 · thay đổi dồn vào đâu  (rows đã sắp theo mức chênh lệch giảm dần)
-  if(totB && dir==='up' && ups.length){
-    const t=ups[0], share=sumUp?Math.abs(t.d)/sumUp*100:0;
-    s.push(`Mức tăng chủ yếu đến từ <b>${esc(t.k)}</b> (+${money(t.d)}, chiếm <b>${pc(share)}</b> tổng phần tăng)`
-         + (ups.length>1?`, cùng ${ups.length-1} ${lab} khác.`:'.'));
+  // 2 · dự báo cả kỳ theo nhịp hiện tại
+  const aFull=P.aFull||0, bFull=P.bFull||0;
+  if(aFull && dA && dA<aFull){
+    const fc=totA*aFull;                       // totA là mức trung bình mỗi ngày
+    let line=`<b>Dự báo:</b> giữ nguyên nhịp này, cả ${esc(P.aLabel)} (${aFull} ngày) ước đạt <b>${moneyFull(fc)}</b>`;
+    if(totB && bFull){
+      const prev=totB*bFull, d=fc-prev;
+      const w = d>0?'<span class="up">cao hơn</span>' : d<0?'<span class="down">thấp hơn</span>' : 'ngang bằng';
+      line += ` — ${w}${d?` <b>${pc(Math.abs(d/prev*100))}</b>`:''} so với ${moneyFull(prev)} của ${esc(P.bLabel)}`;
+    }
+    line += '.';
+    if(dA/aFull < .25) line += ` Mới đi được ${dA}/${aFull} ngày nên con số dự báo còn dao động mạnh.`;
+    s.push(line);
+  }else if(aFull && dA>=aFull){
+    s.push(`${esc(P.aLabel)} đã trọn ${aFull} ngày nên đây là số thực hiện, không phải dự báo.`);
   }
-  if(dir==='down' && downs.length){
-    const t=downs[0], share=sumDown?Math.abs(t.d)/sumDown*100:0;
-    s.push(`Mức giảm tập trung ở <b>${esc(t.k)}</b> (−${money(Math.abs(t.d))}, chiếm <b>${pc(share)}</b> tổng phần giảm)`
-         + (downs.length>1?`, cùng ${downs.length-1} ${lab} khác.`:'.'));
-  }
-  // lực kéo ngược chiều, nếu đáng kể
-  if(dir==='up' && downs.length && sumDown>sumUp*0.25)
-    s.push(`Bù lại, ${downs.length} ${lab} sụt <span class="down">−${money(sumDown)}</span>, dẫn đầu là <b>${esc(downs[0].k)}</b>.`);
-  if(dir==='down' && ups.length && sumUp>sumDown*0.25)
-    s.push(`Điểm sáng: ${ups.length} ${lab} vẫn <span class="up">+${money(sumUp)}</span>, dẫn đầu là <b>${esc(ups[0].k)}</b>.`);
-
-  // 3 · lan rộng hay dồn cục
-  const moved=ups.length+downs.length;
-  if(moved>=3){
-    if(downs.length>=ups.length*2)      s.push(`Đà giảm diễn ra trên diện rộng: <b>${downs.length}/${moved}</b> ${lab} có doanh thu đi xuống.`);
-    else if(ups.length>=downs.length*2) s.push(`Tăng trưởng lan khá đều: <b>${ups.length}/${moved}</b> ${lab} tăng doanh thu.`);
-  }
-
-  // 4 · mới và ngừng
-  const list=a=>a.slice(0,3).map(r=>`<b>${esc(r.k)}</b>`).join(', ')+(a.length>3?` và ${a.length-3} mục nữa`:'');
-  const news=rows.filter(r=>r.kind==='new'), stops=rows.filter(r=>r.kind==='stop');
-  if(news.length && totB) s.push(`${news.length} ${lab} mới phát sinh doanh thu: ${list(news)} (${money(news.reduce((a,r)=>a+r.a,0))}).`);
-  if(stops.length) s.push(`${stops.length} ${lab} không còn doanh thu ở ${esc(P.aLabel)}: ${list(stops)} — mất ${money(stops.reduce((a,r)=>a+r.b,0))}.`);
 
   return {dir,ico,html:s.join(' ')};
 }
