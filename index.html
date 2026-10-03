@@ -781,6 +781,16 @@ footer{
       <div class="chart-wrap"><canvas id="chart-combo"></canvas></div>
     </div>
 
+    <!-- Monthly chart -->
+    <div class="card" style="margin-bottom:14px">
+      <div class="sec-title">
+        <span class="sec-dot" style="background:var(--blue)"></span>
+        <span id="sec-month">Doanh Thu Theo Tháng &amp; Sàn</span>
+        <span class="sec-right" id="sec-month-hint">Tổng cả kỳ · không phụ thuộc bộ lọc tháng</span>
+      </div>
+      <div class="chart-wrap"><canvas id="chart-month"></canvas></div>
+    </div>
+
     <!-- Weekly status chart -->
     <div class="card" style="margin-bottom:14px">
       <div class="sec-title" style="flex-wrap:wrap;gap:8px">
@@ -1047,7 +1057,7 @@ let curId = SOURCES[0].id;
 let S     = STATE[curId];                       // state của trang đang xem
 const curSrc = () => SOURCES.find(s=>s.id===curId);
 
-let chartCombo=null, chartWeekly=null, chartCmpA=null, chartCmpB=null;
+let chartCombo=null, chartWeekly=null, chartCmpA=null, chartCmpB=null, chartMonth=null;
 
 const SKU_PALETTE=['#2563eb','#059669','#d97706','#dc2626','#7c3aed','#ea580c','#0891b2','#db2777','#65a30d','#0284c7'];
 
@@ -1564,6 +1574,7 @@ function render(){
   document.getElementById('footer-info').textContent=parts.join(' · ');
 
   renderComboChart(f);
+  renderMonthChart();
   renderWeeklyChart();
   renderSKUBars(f);
   renderBURows(f);
@@ -1626,6 +1637,93 @@ function renderComboChart(f){
         y:{ticks:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:10},callback:v=>money(v)},
            grid:{color:CHART_DEFAULTS.gridColor},border:{display:false}},
         y2:{position:'right',ticks:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:10}},
+            grid:{display:false},border:{display:false}},
+      }
+    }
+  });
+}
+
+/* ─── Biểu đồ theo tháng ──────────────────────────────────
+   Cố tình BỎ QUA bộ lọc tháng và khoảng ngày: đây là ô nhìn tổng
+   cả kỳ, chọn một tháng mà chỉ còn một cột thì mất ý nghĩa. Các bộ
+   lọc khác (sàn, trạng thái, sản phẩm) vẫn được áp bình thường.
+   Tháng đang chọn giữ màu đậm, các tháng còn lại mờ đi.          */
+
+// Ghi tổng tiền lên đầu mỗi cột
+const monthTotalPlugin={
+  id:'monthTotals',
+  afterDatasetsDraw(chart){
+    const cfg=chart.options.plugins.monthTotals;
+    if(!cfg||!cfg.values) return;
+    const ctx=chart.ctx;
+    ctx.save();
+    ctx.font=`600 10px ${CHART_DEFAULTS.fontMono}, monospace`;
+    ctx.fillStyle=CHART_DEFAULTS.tickColor;
+    ctx.textAlign='center';
+    cfg.values.forEach((v,i)=>{
+      if(!v) return;
+      let top=Infinity, x=null;
+      chart.data.datasets.forEach((ds,di)=>{
+        if(ds.type!=='bar') return;
+        const el=chart.getDatasetMeta(di).data[i];
+        if(!el) return;
+        top=Math.min(top,el.y); x=el.x;
+      });
+      if(x!=null && isFinite(top)) ctx.fillText(money(v), x, top-6);
+    });
+    ctx.restore();
+  }
+};
+
+function renderMonthChart(){
+  const sc=curSchema();
+  const rows=S.RAW.filter(matchNonTime);          // mọi bộ lọc trừ thời gian
+  const months=[...new Set(rows.map(r=>monthOf(r[2])))].sort((a,b)=>a-b);
+
+  const byMonth={}; months.forEach(m=>byMonth[m]=[]);
+  rows.forEach(r=>{ const m=monthOf(r[2]); if(byMonth[m]) byMonth[m].push(r); });
+  const sum=rs=>rs.reduce((s,r)=>s+r[3],0);
+  const totals=months.map(m=>sum(byMonth[m]));
+  const orders=months.map(m=>byMonth[m].length);
+
+  // tháng đang chọn đậm, còn lại mờ
+  const alpha=m=>(S.selMonth==null||S.selMonth===m)?'CC':'3D';
+  const plats=S.ALL_BUS.filter(b=>rows.some(r=>r[5]===b));
+  const barSets=plats.map((pl,i)=>({
+    type:'bar', label:pl, stack:'m', yAxisID:'y',
+    data:months.map(m=>sum(byMonth[m].filter(r=>r[5]===pl))),
+    backgroundColor:months.map(m=>buColor(pl)+alpha(m)),
+    borderRadius:i===plats.length-1?{topLeft:5,topRight:5}:0,
+  }));
+
+  if(chartMonth) chartMonth.destroy();
+  chartMonth=new Chart(document.getElementById('chart-month').getContext('2d'),{
+    plugins:[monthTotalPlugin],
+    data:{labels:months.map(m=>`Tháng ${m}`),datasets:[
+      ...barSets,
+      {type:'line',label:sc.lineLabel,data:orders,yAxisID:'y2',
+       borderColor:'#d97706',backgroundColor:'transparent',borderWidth:2.5,
+       pointBackgroundColor:'#d97706',pointRadius:4,tension:.3},
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      layout:{padding:{top:18}},            // chừa chỗ cho chữ tổng phía trên cột
+      plugins:{
+        monthTotals:{values:totals},
+        legend:{labels:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:11}}},
+        tooltip:{backgroundColor:'#fff',borderColor:'#dde4f0',borderWidth:1,
+          titleColor:'#64748b',bodyColor:'#1e2d4d',
+          callbacks:{label:c=>c.dataset.label===sc.lineLabel
+            ? c.parsed.y+sc.lineUnit : `${c.dataset.label}: ${moneyFull(c.parsed.y)}`}},
+      },
+      scales:{
+        x:{stacked:true,ticks:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:10}},
+           grid:{color:CHART_DEFAULTS.gridColor},border:{color:CHART_DEFAULTS.gridColor}},
+        y:{stacked:true,grace:'12%',   // chừa khoảng hở để chữ tổng không chạm chú giải
+           ticks:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:10},callback:v=>money(v)},
+           grid:{color:CHART_DEFAULTS.gridColor},border:{display:false}},
+        y2:{position:'right',grace:'12%',
+            ticks:{color:CHART_DEFAULTS.tickColor,font:{family:CHART_DEFAULTS.fontMono,size:10}},
             grid:{display:false},border:{display:false}},
       }
     }
